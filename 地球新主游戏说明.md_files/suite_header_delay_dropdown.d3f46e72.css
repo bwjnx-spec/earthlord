@@ -1,0 +1,12 @@
+/*! *****************************************************************************
+                              这里是与设计对其的标准色盘
+注意：所有的颜色须从色盘中提取，不得擅自添加颜色。若设计师给出的UI稿中带有色盘中不存在的颜色，
+请与王坤联系并确认。
+***************************************************************************** */
+/*! **************************************
+        Naming Rule:
+          modules(BEM) + rule name
+
+        Example:
+          @main-container-bg
+*****************************************/.innerdocbody.adit-container ul.r-list-done li{color:var(--text-caption)}.portal{position:absolute;z-index:100}.portal.layout-body-center{left:50%;position:absolute;top:50%;transform:translate(-50%,-50%)}.portal-mask{background-color:rgba(var(--text-title-raw),.6);bottom:0;height:100%;left:0;position:fixed;right:0;top:0;z-index:100}@keyframes bottom-enter{0%{opacity:0;transform:translate3d(0,-10px,0)}to{opacity:1;transform:translateZ(0)}}@keyframes bottom-leave{0%{opacity:1;transform:translateZ(0)}to{opacity:0;transform:translate3d(0,-10px,0)}}.bear-dropdown-bottom-enter{animation-duration:.1s;animation-fill-mode:forwards;animation-name:bottom-enter;animation-timing-function:ease-in-out}.bear-dropdown-bottom-leave{animation-duration:.1s;animation-fill-mode:forwards;animation-name:bottom-leave;animation-timing-function:ease-in-out}
