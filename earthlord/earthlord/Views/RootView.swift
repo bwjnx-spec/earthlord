@@ -1,13 +1,21 @@
 import SwiftUI
 import Combine
 import Supabase
+import Auth
 
 // 全局 Supabase 客户端实例
-// 注：关于 emitLocalSessionAsInitialSession 的警告已通过在 checkSession 中添加 session.isExpired 检查来处理
-let supabaseClient = SupabaseClient(
-    supabaseURL: URL(string: "https://xlhkojuliphmvmzhpgzw.supabase.co")!,
-    supabaseKey: "sb_publishable_ME9eRLy8bCWswTTsogZeGg_yGnYwteQ"
-)
+// 配置 AuthClient 以采用新的会话处理行为
+let supabaseClient: SupabaseClient = {
+    return SupabaseClient(
+        supabaseURL: URL(string: "https://xlhkojuliphmvmzhpgzw.supabase.co")!,
+        supabaseKey: "sb_publishable_ME9eRLy8bCWswTTsogZeGg_yGnYwteQ",
+        options: SupabaseClientOptions(
+            auth: .init(
+                emitLocalSessionAsInitialSession: true
+            )
+        )
+    )
+}()
 
 /// 根视图：控制启动页、登录页与主界面的切换
 struct RootView: View {
