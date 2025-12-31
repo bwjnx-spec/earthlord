@@ -38,9 +38,12 @@ struct earthlordApp: App {
             }
             .animation(.easeInOut(duration: 0.3), value: showSplash)
             .animation(.easeInOut(duration: 0.3), value: authManager.isAuthenticated)
-            .onAppear {
-                // 监听认证状态变化
-                setupAuthStateListener()
+            .onChange(of: showSplash) { newValue in
+                // 启动页完成后才开始监听认证状态变化
+                if !newValue {
+                    print("🎬 启动页完成，开始监听认证状态")
+                    setupAuthStateListener()
+                }
             }
         }
     }
