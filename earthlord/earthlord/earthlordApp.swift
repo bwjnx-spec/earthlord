@@ -15,47 +15,31 @@ struct earthlordApp: App {
     /// 全局认证管理器
     @StateObject private var authManager = AuthManager(supabase: supabaseClient)
 
-    /// 是否显示启动页
-    @State private var showSplash = true
-
-    /// 是否已开始监听认证状态
-    @State private var isListening = false
-
     var body: some Scene {
         WindowGroup {
-            Group {
-                if showSplash {
-                    // 启动页
-                    SplashView(isFinished: $showSplash, authManager: authManager)
-                } else if authManager.isAuthenticated {
-                    // 已登录 → 主界面
-                    ContentView()
-                        .environmentObject(authManager)
-                        .onAppear {
-                            print("📱 显示主界面 ContentView")
-                        }
-                } else {
-                    // 未登录 → 登录页
-                    AuthView(authManager: authManager)
-                        .onAppear {
-                            print("🔑 显示登录页 AuthView")
-                        }
-                }
+            VStack {
+                Text("EarthLord - 调试模式")
+                    .font(.title)
+                    .padding()
+
+                Text("如果能看到下面的登录界面，说明一切正常")
+                    .foregroundColor(.secondary)
+                    .padding()
+
+                Divider()
+
+                // 直接嵌入登录页面
+                AuthView(authManager: authManager)
             }
             .onAppear {
-                print("🚀 App 启动 - showSplash: \(showSplash), isAuthenticated: \(authManager.isAuthenticated)")
-            }
-            .onChange(of: showSplash) { newValue in
-                print("📊 showSplash 变化: \(newValue), isAuthenticated: \(authManager.isAuthenticated)")
-                // 启动页完成后才开始监听认证状态变化
-                if !newValue && !isListening {
-                    print("🎬 启动页完成，开始监听认证状态")
-                    isListening = true
-                    setupAuthStateListener()
-                }
-            }
-            .onChange(of: authManager.isAuthenticated) { newValue in
-                print("🔐 认证状态变化: \(newValue)")
+                print("✅✅✅ 应用已启动 ✅✅✅")
+                print("   authManager: \(authManager)")
+                print("   isAuthenticated: \(authManager.isAuthenticated)")
+
+                // 强制重置状态
+                authManager.isAuthenticated = false
+                authManager.currentUser = nil
+                print("   状态已重置为未登录")
             }
         }
     }
