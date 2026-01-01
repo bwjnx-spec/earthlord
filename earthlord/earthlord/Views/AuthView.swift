@@ -117,6 +117,11 @@ struct AuthView: View {
                 registerStep = .password
             }
         }
+        .onAppear {
+            print("✅ AuthView 已显示")
+            print("   - isAuthenticated: \(authManager.isAuthenticated)")
+            print("   - selectedTab: \(selectedTab)")
+        }
     }
 
     // MARK: - Tab 选择器

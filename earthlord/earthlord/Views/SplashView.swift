@@ -177,9 +177,11 @@ struct SplashView: View {
             // 完成启动，关闭启动页
             await MainActor.run {
                 print("✅ 启动完成 - isAuthenticated: \(authManager.isAuthenticated)")
+                print("   即将设置 isFinished = true")
                 withAnimation(.easeInOut(duration: 0.3)) {
                     isFinished = true
                 }
+                print("   isFinished 已设置为: \(isFinished)")
             }
         }
     }

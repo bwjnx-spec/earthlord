@@ -30,20 +30,33 @@ struct earthlordApp: App {
                     ContentView()
                         .transition(.opacity)
                         .environmentObject(authManager)
+                        .onAppear {
+                            print("📱 显示主界面 ContentView")
+                        }
                 } else {
                     // 未登录 → 登录页
                     AuthView(authManager: authManager)
                         .transition(.opacity)
+                        .onAppear {
+                            print("🔑 显示登录页 AuthView")
+                        }
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: showSplash)
             .animation(.easeInOut(duration: 0.3), value: authManager.isAuthenticated)
+            .onAppear {
+                print("🚀 App 启动 - showSplash: \(showSplash), isAuthenticated: \(authManager.isAuthenticated)")
+            }
             .onChange(of: showSplash) { newValue in
+                print("📊 showSplash 变化: \(newValue), isAuthenticated: \(authManager.isAuthenticated)")
                 // 启动页完成后才开始监听认证状态变化
                 if !newValue {
                     print("🎬 启动页完成，开始监听认证状态")
                     setupAuthStateListener()
                 }
+            }
+            .onChange(of: authManager.isAuthenticated) { newValue in
+                print("🔐 认证状态变化: \(newValue)")
             }
         }
     }
