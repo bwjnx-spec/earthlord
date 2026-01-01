@@ -70,9 +70,13 @@ struct earthlordApp: App {
                         authManager.isAuthenticated = true
 
                     case .signedOut:
-                        print("🚪 用户已登出")
+                        print("🚪 用户已登出（会话过期或主动登出）")
                         authManager.isAuthenticated = false
                         authManager.currentUser = nil
+                        authManager.needsPasswordSetup = false
+                        authManager.otpSent = false
+                        authManager.otpVerified = false
+                        print("   已清除所有认证状态，即将跳转到登录页")
 
                     case .userUpdated:
                         print("👤 用户信息已更新")

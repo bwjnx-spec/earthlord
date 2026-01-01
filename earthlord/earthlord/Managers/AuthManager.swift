@@ -333,12 +333,15 @@ class AuthManager: ObservableObject {
 
     /// 登出
     func signOut() async {
+        print("🚪 开始登出...")
         isLoading = true
         errorMessage = nil
 
         do {
+            print("   调用 supabase.auth.signOut()")
             try await supabase.auth.signOut()
 
+            print("   清除本地状态...")
             // 重置所有状态
             isAuthenticated = false
             needsPasswordSetup = false
@@ -346,14 +349,25 @@ class AuthManager: ObservableObject {
             otpSent = false
             otpVerified = false
 
-            print("✅ 已登出")
+            print("✅ 登出成功")
+            print("   isAuthenticated: \(isAuthenticated)")
+            print("   currentUser: \(currentUser?.email ?? "nil")")
 
         } catch {
             errorMessage = "登出失败: \(error.localizedDescription)"
             print("❌ 登出失败: \(error)")
+
+            // 即使登出失败，也清除本地状态
+            print("   强制清除本地状态")
+            isAuthenticated = false
+            needsPasswordSetup = false
+            currentUser = nil
+            otpSent = false
+            otpVerified = false
         }
 
         isLoading = false
+        print("🚪 登出流程结束")
     }
 
     /// 检查当前会话
