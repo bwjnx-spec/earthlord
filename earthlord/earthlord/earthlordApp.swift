@@ -90,8 +90,11 @@ struct earthlordApp: App {
                     case .mfaChallengeVerified:
                         print("✅ MFA 验证完成")
 
+                    case .initialSession:
+                        print("📋 初始会话加载")
+
                     @unknown default:
-                        print("❓ 未知认证事件")
+                        print("❓ 未知认证事件: \(state.event)")
                     }
                 }
             }
