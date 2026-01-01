@@ -17,29 +17,44 @@ struct earthlordApp: App {
 
     var body: some Scene {
         WindowGroup {
-            VStack {
-                Text("EarthLord - 调试模式")
-                    .font(.title)
-                    .padding()
-
-                Text("如果能看到下面的登录界面，说明一切正常")
-                    .foregroundColor(.secondary)
-                    .padding()
-
-                Divider()
-
-                // 直接嵌入登录页面
-                AuthView(authManager: authManager)
+            Group {
+                if authManager.isAuthenticated {
+                    // 已登录 → 主界面
+                    ContentView()
+                        .environmentObject(authManager)
+                        .onAppear {
+                            print("✅ 已进入主界面")
+                            print("   用户: \(authManager.currentUser?.email ?? "未知")")
+                        }
+                } else {
+                    // 未登录 → 登录页
+                    AuthView(authManager: authManager)
+                        .onAppear {
+                            print("📱 显示登录页面")
+                        }
+                }
             }
             .onAppear {
-                print("✅✅✅ 应用已启动 ✅✅✅")
-                print("   authManager: \(authManager)")
-                print("   isAuthenticated: \(authManager.isAuthenticated)")
+                print("🚀 应用启动")
 
-                // 强制重置状态
-                authManager.isAuthenticated = false
-                authManager.currentUser = nil
-                print("   状态已重置为未登录")
+                // DEBUG 模式清除会话
+                #if DEBUG
+                Task {
+                    print("🔧 DEBUG: 清除缓存会话")
+                    try? await supabaseClient.auth.signOut()
+                    await MainActor.run {
+                        authManager.isAuthenticated = false
+                        authManager.currentUser = nil
+                    }
+                }
+                #endif
+            }
+            .onChange(of: authManager.isAuthenticated) { newValue in
+                print("🔐 认证状态变化: \(newValue)")
+            }
+            .task {
+                // 监听认证状态变化
+                setupAuthStateListener()
             }
         }
     }

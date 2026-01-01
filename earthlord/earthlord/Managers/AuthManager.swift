@@ -168,19 +168,26 @@ class AuthManager: ObservableObject {
     ///   - email: 用户邮箱
     ///   - password: 用户密码
     func signIn(email: String, password: String) async {
+        print("🔑 开始登录: \(email)")
         isLoading = true
         errorMessage = nil
 
         do {
+            print("   调用 supabase.auth.signIn...")
             // 使用邮箱密码登录
             let session = try await supabase.auth.signIn(
                 email: email,
                 password: password
             )
 
+            print("   登录 API 调用成功")
+            print("   会话 ID: \(session.accessToken.prefix(20))...")
+
             // 登录成功，直接设置为已认证
             isAuthenticated = true
             needsPasswordSetup = false
+
+            print("   ✅ isAuthenticated 已设置为: \(isAuthenticated)")
 
             // 获取用户信息
             let supabaseUser = session.user
@@ -191,6 +198,9 @@ class AuthManager: ObservableObject {
             )
 
             print("✅ 登录成功: \(email)")
+            print("   用户 ID: \(supabaseUser.id.uuidString)")
+            print("   isAuthenticated: \(isAuthenticated)")
+            print("   currentUser: \(currentUser?.email ?? "nil")")
 
         } catch {
             errorMessage = "登录失败: \(error.localizedDescription)"
@@ -198,6 +208,7 @@ class AuthManager: ObservableObject {
         }
 
         isLoading = false
+        print("🔑 登录流程结束 - isAuthenticated: \(isAuthenticated)")
     }
 
     // MARK: - 找回密码流程
