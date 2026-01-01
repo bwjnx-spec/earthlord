@@ -152,7 +152,7 @@ struct SplashView: View {
         Task {
             // 第一步：初始化
             loadingText = "正在初始化..."
-            try? await Task.sleep(nanoseconds: 800_000_000) // 0.8秒
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
 
             // 第二步：检查会话
             loadingText = "检查登录状态..."
@@ -160,27 +160,38 @@ struct SplashView: View {
             #if DEBUG
             // 开发模式：清除会话以便测试
             print("🔧 DEBUG: 清除缓存会话")
-            try? await supabaseClient.auth.signOut()
-            authManager.isAuthenticated = false
-            authManager.currentUser = nil
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+            do {
+                try await supabaseClient.auth.signOut()
+                print("   signOut 成功")
+            } catch {
+                print("   signOut 错误（可忽略）: \(error.localizedDescription)")
+            }
+
+            // 强制设置为未登录状态
+            await MainActor.run {
+                authManager.isAuthenticated = false
+                authManager.currentUser = nil
+                authManager.needsPasswordSetup = false
+                authManager.otpSent = false
+                authManager.otpVerified = false
+                print("   认证状态已重置: isAuthenticated = \(authManager.isAuthenticated)")
+            }
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
             #else
             // 生产模式：检查会话
             await authManager.checkSession()
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
             #endif
 
             // 第三步：加载完成
             loadingText = "准备就绪"
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
 
             // 完成启动，关闭启动页
             await MainActor.run {
                 print("✅ 启动完成 - isAuthenticated: \(authManager.isAuthenticated)")
                 print("   即将设置 isFinished = true")
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    isFinished = true
-                }
+                isFinished = true
                 print("   isFinished 已设置为: \(isFinished)")
             }
         }

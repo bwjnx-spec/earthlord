@@ -18,17 +18,18 @@ struct earthlordApp: App {
     /// 是否显示启动页
     @State private var showSplash = true
 
+    /// 是否已开始监听认证状态
+    @State private var isListening = false
+
     var body: some Scene {
         WindowGroup {
-            ZStack {
+            Group {
                 if showSplash {
                     // 启动页
                     SplashView(isFinished: $showSplash, authManager: authManager)
-                        .transition(.opacity)
                 } else if authManager.isAuthenticated {
                     // 已登录 → 主界面
                     ContentView()
-                        .transition(.opacity)
                         .environmentObject(authManager)
                         .onAppear {
                             print("📱 显示主界面 ContentView")
@@ -36,22 +37,20 @@ struct earthlordApp: App {
                 } else {
                     // 未登录 → 登录页
                     AuthView(authManager: authManager)
-                        .transition(.opacity)
                         .onAppear {
                             print("🔑 显示登录页 AuthView")
                         }
                 }
             }
-            .animation(.easeInOut(duration: 0.3), value: showSplash)
-            .animation(.easeInOut(duration: 0.3), value: authManager.isAuthenticated)
             .onAppear {
                 print("🚀 App 启动 - showSplash: \(showSplash), isAuthenticated: \(authManager.isAuthenticated)")
             }
             .onChange(of: showSplash) { newValue in
                 print("📊 showSplash 变化: \(newValue), isAuthenticated: \(authManager.isAuthenticated)")
                 // 启动页完成后才开始监听认证状态变化
-                if !newValue {
+                if !newValue && !isListening {
                     print("🎬 启动页完成，开始监听认证状态")
+                    isListening = true
                     setupAuthStateListener()
                 }
             }
