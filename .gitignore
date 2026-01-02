@@ -1,3 +1,10 @@
 .DS_Store
 *.log
 node_modules/
+
+# Xcode
+*.xcuserstate
+*.xcuserdatad
+xcuserdata/
+DerivedData/
+*.xcworkspace/xcuserdata/
