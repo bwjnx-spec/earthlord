@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<!-- Google Sign-In URL Scheme -->
-	<!-- 将下面的 YOUR_REVERSED_CLIENT_ID 替换为你的 Google Client ID 的反转格式 -->
-	<!-- 例如：如果你的 Client ID 是 123456789-abc.apps.googleusercontent.com -->
-	<!-- 那么 Reversed Client ID 应该是 com.googleusercontent.apps.123456789-abc -->
+	<!-- Reversed Client ID 用于处理 Google 登录回调 -->
+	<!-- Client ID: 431220526072-jadsbrvusm6budts89a10t3nj97f0ftc.apps.googleusercontent.com -->
+	<!-- Reversed Client ID: com.googleusercontent.apps.431220526072-jadsbrvusm6budts89a10t3nj97f0ftc -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -13,8 +13,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<!-- 替换为你的 Reversed Client ID -->
-				<string>YOUR_REVERSED_CLIENT_ID</string>
+				<string>com.googleusercontent.apps.431220526072-jadsbrvusm6budts89a10t3nj97f0ftc</string>
 			</array>
 		</dict>
 	</array>

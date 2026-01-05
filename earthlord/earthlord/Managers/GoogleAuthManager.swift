@@ -11,11 +11,8 @@ class GoogleAuthManager {
     private let supabase: SupabaseClient
 
     // Google Client ID（从 Google Cloud Console 获取）
-    // 需要在使用前设置正确的 Client ID
     private var clientID: String {
-        // TODO: 替换为你的 Google Client ID
-        // 格式类似：123456789-abcdefghijklmnop.apps.googleusercontent.com
-        return "YOUR_GOOGLE_CLIENT_ID"
+        return "431220526072-jadsbrvusm6budts89a10t3nj97f0ftc.apps.googleusercontent.com"
     }
 
     init(supabase: SupabaseClient) {
