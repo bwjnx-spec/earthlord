@@ -9,6 +9,7 @@ import SwiftUI
 import Combine
 import Auth
 import Supabase
+import GoogleSignIn
 
 @main
 struct earthlordApp: App {
@@ -55,6 +56,11 @@ struct earthlordApp: App {
             .task {
                 // 监听认证状态变化
                 setupAuthStateListener()
+            }
+            .onOpenURL { url in
+                // 处理 Google Sign-In 回调 URL
+                print("🔗 收到 URL 回调: \(url)")
+                GIDSignIn.sharedInstance.handle(url)
             }
         }
     }

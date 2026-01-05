@@ -205,6 +205,46 @@ struct AuthView: View {
                     .font(.footnote)
                     .foregroundColor(ApocalypseTheme.primary)
             }
+
+            // 分隔线
+            HStack {
+                Rectangle()
+                    .fill(ApocalypseTheme.textSecondary.opacity(0.3))
+                    .frame(height: 1)
+                Text("或")
+                    .font(.footnote)
+                    .foregroundColor(ApocalypseTheme.textSecondary)
+                Rectangle()
+                    .fill(ApocalypseTheme.textSecondary.opacity(0.3))
+                    .frame(height: 1)
+            }
+            .padding(.vertical, 8)
+
+            // Google 登录按钮
+            Button(action: handleGoogleLogin) {
+                HStack(spacing: 12) {
+                    if authManager.isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: ApocalypseTheme.primary))
+                    } else {
+                        Image(systemName: "globe")
+                            .font(.system(size: 20))
+                    }
+                    Text(authManager.isLoading ? "Google 登录中..." : "使用 Google 登录")
+                        .font(.headline)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.white)
+                .foregroundColor(ApocalypseTheme.primary)
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(ApocalypseTheme.primary.opacity(0.3), lineWidth: 1)
+                )
+            }
+            .disabled(authManager.isLoading)
+            .opacity(authManager.isLoading ? 0.6 : 1.0)
         }
         .padding(.horizontal, 32)
     }
@@ -620,6 +660,16 @@ struct AuthView: View {
     private func handleLogin() {
         Task {
             await authManager.signIn(email: loginEmail, password: loginPassword)
+        }
+    }
+
+    // Google 登录
+    private func handleGoogleLogin() {
+        print("🔵 用户点击 Google 登录按钮")
+        Task {
+            print("   开始 Google 登录流程...")
+            await authManager.signInWithGoogle()
+            print("   Google 登录流程结束")
         }
     }
 

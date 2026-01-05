@@ -313,7 +313,7 @@ class AuthManager: ObservableObject {
         isLoading = false
     }
 
-    // MARK: - 第三方登录（预留）
+    // MARK: - 第三方登录
 
     /// 使用 Apple 登录
     /// - Note: TODO: 实现 Apple Sign In
@@ -323,10 +323,44 @@ class AuthManager: ObservableObject {
     }
 
     /// 使用 Google 登录
-    /// - Note: TODO: 实现 Google Sign In
     func signInWithGoogle() async {
-        // TODO: 实现 Google 第三方登录
-        print("⚠️ Google 登录功能待实现")
+        print("🔵 开始 Google 登录流程")
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // 创建 Google 认证管理器
+            let googleAuthManager = GoogleAuthManager(supabase: supabase)
+
+            // 执行 Google 登录并获取 Supabase 用户
+            print("   调用 Google 登录...")
+            let supabaseUser = try await googleAuthManager.signInWithGoogle()
+
+            // 登录成功，设置认证状态
+            isAuthenticated = true
+            needsPasswordSetup = false
+
+            // 更新用户信息
+            currentUser = User(
+                id: supabaseUser.id.uuidString,
+                email: supabaseUser.email,
+                createdAt: supabaseUser.createdAt
+            )
+
+            print("✅ Google 登录完成")
+            print("   用户 ID: \(supabaseUser.id.uuidString)")
+            print("   用户 Email: \(supabaseUser.email ?? "未知")")
+            print("   isAuthenticated: \(isAuthenticated)")
+
+        } catch {
+            // 处理登录错误
+            errorMessage = "Google 登录失败: \(error.localizedDescription)"
+            print("❌ Google 登录失败: \(error)")
+            isAuthenticated = false
+        }
+
+        isLoading = false
+        print("🔵 Google 登录流程结束")
     }
 
     // MARK: - 其他方法

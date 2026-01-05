@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Google Sign-In URL Scheme -->
+	<!-- 将下面的 YOUR_REVERSED_CLIENT_ID 替换为你的 Google Client ID 的反转格式 -->
+	<!-- 例如：如果你的 Client ID 是 123456789-abc.apps.googleusercontent.com -->
+	<!-- 那么 Reversed Client ID 应该是 com.googleusercontent.apps.123456789-abc -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- 替换为你的 Reversed Client ID -->
+				<string>YOUR_REVERSED_CLIENT_ID</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- 应用名称 -->
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+
+	<!-- 应用显示名称 -->
+	<key>CFBundleDisplayName</key>
+	<string>地球新主</string>
+
+	<!-- App 传输安全设置（允许所有网络连接） -->
+	<!-- 注意：仅用于开发测试，生产环境应配置具体的域名 -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+</dict>
+</plist>
