@@ -1,0 +1,46 @@
+# Supabase 本地开发配置
+# 用于 Supabase CLI 和边缘函数部署
+
+[project]
+name = "earthlord"
+# 替换为你的 Supabase 项目 ID
+ref = "xlhkojuliphmvmzhpgzw"
+
+[api]
+# API 配置
+enabled = true
+port = 54321
+# 替换为你的 Supabase 项目 URL
+url = "https://xlhkojuliphmvmzhpgzw.supabase.co"
+
+[db]
+# 数据库配置
+port = 54322
+
+[studio]
+# Supabase Studio 配置
+enabled = true
+port = 54323
+
+[inbucket]
+# Email 测试服务
+enabled = true
+port = 54324
+
+[auth]
+# 认证配置
+enabled = true
+site_url = "http://localhost:3000"
+
+[edge_runtime]
+# Edge Functions 运行时配置
+enabled = true
+port = 54325
+
+# Edge Functions 环境变量
+[functions]
+# 这些环境变量会自动注入到所有边缘函数中
+[functions.environment]
+# 注意：这些变量在部署时会自动从 Supabase 项目中获取
+# SUPABASE_URL 和 SUPABASE_ANON_KEY 会自动注入
+# SUPABASE_SERVICE_ROLE_KEY 需要在 Supabase Dashboard 中配置

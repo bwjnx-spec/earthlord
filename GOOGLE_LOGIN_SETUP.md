@@ -40,37 +40,25 @@ private var clientID: String {
 }
 ```
 
-### 步骤 3：配置 Info.plist
+### 步骤 3：在 Xcode 中配置 URL Schemes
 
-打开文件：`earthlord/earthlord/Info.plist`
+⚠️ **重要**：不要手动创建 Info.plist 文件，直接在 Xcode 中配置！
 
-找到第 16 行左右的代码：
-```xml
-<!-- 替换为你的 Reversed Client ID -->
-<string>YOUR_REVERSED_CLIENT_ID</string>
-```
+**详细配置步骤请查看：`XCODE_URL_SCHEMES_SETUP.md`**
 
-替换为你的 Reversed Client ID：
-```xml
-<!-- 例如：com.googleusercontent.apps.123456789-xxx -->
-<string>com.googleusercontent.apps.123456789-xxx</string>
-```
-
-**重要说明：Reversed Client ID 的格式**
-- 原 Client ID: `123456789-abc.apps.googleusercontent.com`
-- Reversed Client ID: `com.googleusercontent.apps.123456789-abc`
-
-### 步骤 4：在 Xcode 中配置 Info.plist
-
-由于这是现代 Xcode 项目，需要在 Xcode 中关联 Info.plist：
-
+**快速配置**：
 1. 打开 Xcode 项目
 2. 选择 `earthlord` target
-3. 进入 `Build Settings` 选项卡
-4. 搜索 `Info.plist File`
-5. 设置值为：`earthlord/Info.plist`
+3. 进入 **Info** 选项卡
+4. 在 **URL Types** 部分点击 **+**
+5. 填入：
+   - Identifier: `com.google.signin`
+   - URL Schemes: `com.googleusercontent.apps.431220526072-jadsbrvusm6budts89a10t3nj97f0ftc`
+   - Role: `Editor`
+6. Clean Build Folder (`Cmd + Shift + K`)
+7. 重新构建项目
 
-### 步骤 5：配置 Supabase Google Provider
+### 步骤 4：配置 Supabase Google Provider
 
 你已经在 Supabase Dashboard 中启用了 Google Provider，确认以下配置：
 

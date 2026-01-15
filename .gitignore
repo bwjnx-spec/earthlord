@@ -8,3 +8,8 @@ node_modules/
 xcuserdata/
 DerivedData/
 *.xcworkspace/xcuserdata/
+
+# Supabase
+supabase/.env
+supabase/.branches
+supabase/.temp

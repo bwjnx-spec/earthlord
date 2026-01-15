@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @State private var selectedTab = 0
+    @ObservedObject private var languageManager = LanguageManager.shared
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -34,6 +35,7 @@ struct MainTabView: View {
                 .tag(3)
         }
         .tint(ApocalypseTheme.primary)
+        .refreshOnLanguageChange()
     }
 }
 

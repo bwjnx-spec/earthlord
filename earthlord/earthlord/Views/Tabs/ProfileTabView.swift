@@ -3,7 +3,12 @@ import Supabase
 
 struct ProfileTabView: View {
     @EnvironmentObject var authManager: AuthManager
+    @ObservedObject private var languageManager = LanguageManager.shared
     @State private var showLogoutConfirm = false
+    @State private var showDeleteConfirm = false
+    @State private var deleteConfirmText = ""
+    @State private var showDeleteError = false
+    @State private var deleteErrorMessage = ""
 
     var body: some View {
         NavigationView {
@@ -30,6 +35,9 @@ struct ProfileTabView: View {
                         // 退出登录按钮
                         logoutButton
 
+                        // 删除账户按钮
+                        deleteAccountButton
+
                         Spacer(minLength: 40)
                     }
                     .padding()
@@ -50,6 +58,7 @@ struct ProfileTabView: View {
         } message: {
             Text("确定要退出登录吗？")
         }
+        .refreshOnLanguageChange()
     }
 
     // MARK: - 用户信息卡片
@@ -79,12 +88,18 @@ struct ProfileTabView: View {
 
             // 用户信息
             VStack(spacing: 8) {
-                Text(authManager.currentUser?.email ?? "未知用户")
-                    .font(.headline)
-                    .foregroundColor(ApocalypseTheme.textPrimary)
+                if let email = authManager.currentUser?.email {
+                    Text(email)
+                        .font(.headline)
+                        .foregroundColor(ApocalypseTheme.textPrimary)
+                } else {
+                    Text("未知用户")
+                        .font(.headline)
+                        .foregroundColor(ApocalypseTheme.textPrimary)
+                }
 
                 if let userId = authManager.currentUser?.id {
-                    Text("ID: \(userId.prefix(8))...")
+                    Text("ID: \(String(userId.prefix(8)))...")
                         .font(.caption)
                         .foregroundColor(ApocalypseTheme.textMuted)
                 }
@@ -131,6 +146,19 @@ struct ProfileTabView: View {
                 .background(ApocalypseTheme.textMuted.opacity(0.2))
                 .padding(.horizontal)
 
+            // 语言设置 - 可导航
+            NavigationLink(destination: LanguageSettingView()) {
+                settingRowContent(
+                    icon: "globe",
+                    title: "语言设置",
+                    subtitle: languageManager.currentLanguage.displayName
+                )
+            }
+
+            Divider()
+                .background(ApocalypseTheme.textMuted.opacity(0.2))
+                .padding(.horizontal)
+
             settingRow(
                 icon: "info.circle.fill",
                 title: "关于",
@@ -141,7 +169,7 @@ struct ProfileTabView: View {
         .cornerRadius(16)
     }
 
-    private func settingRow(icon: String, title: String, subtitle: String) -> some View {
+    private func settingRow(icon: String, title: LocalizedStringKey, subtitle: LocalizedStringKey) -> some View {
         HStack(spacing: 16) {
             Image(systemName: icon)
                 .font(.title3)
@@ -172,6 +200,34 @@ struct ProfileTabView: View {
         }
     }
 
+    /// 设置行内容（用于 NavigationLink）
+    private func settingRowContent(icon: String, title: LocalizedStringKey, subtitle: String) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(ApocalypseTheme.primary)
+                .frame(width: 32)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.body)
+                    .foregroundColor(ApocalypseTheme.textPrimary)
+
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(ApocalypseTheme.textMuted)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(ApocalypseTheme.textMuted)
+        }
+        .padding()
+        .contentShape(Rectangle())
+    }
+
     // MARK: - 退出登录按钮
 
     private var logoutButton: some View {
@@ -191,12 +247,88 @@ struct ProfileTabView: View {
         }
     }
 
+    // MARK: - 删除账户按钮
+
+    private var deleteAccountButton: some View {
+        Button(action: { showDeleteConfirm = true }) {
+            HStack {
+                Image(systemName: "trash.fill")
+                    .font(.headline)
+
+                Text("删除账户")
+                    .font(.headline)
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(
+                LinearGradient(
+                    colors: [Color.red.opacity(0.8), Color.red],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .cornerRadius(12)
+        }
+        .alert("危险操作", isPresented: $showDeleteConfirm) {
+            TextField("请输入\"删除\"以确认", text: $deleteConfirmText)
+                .autocapitalization(.none)
+
+            Button("取消", role: .cancel) {
+                deleteConfirmText = ""
+            }
+
+            Button("确认删除", role: .destructive) {
+                Task {
+                    await handleDeleteAccount()
+                }
+            }
+            .disabled(deleteConfirmText != L("删除"))
+        } message: {
+            Text("此操作不可撤销！删除账户将永久清除所有数据。\n\n请在下方输入\"删除\"以确认操作。")
+        }
+        .alert("删除失败", isPresented: $showDeleteError) {
+            Button("确定", role: .cancel) {
+                deleteErrorMessage = ""
+            }
+        } message: {
+            Text(deleteErrorMessage)
+        }
+    }
+
     // MARK: - 登出处理
 
     private func handleLogout() async {
         print("🚪 用户点击退出登录")
         await authManager.signOut()
         print("   登出完成，等待视图切换到登录页")
+    }
+
+    // MARK: - 删除账户处理
+
+    private func handleDeleteAccount() async {
+        print("🗑️ 用户确认删除账户")
+        print("   输入的确认文本: \(deleteConfirmText)")
+
+        // 验证确认文本（使用 L() 获取本地化的"删除"关键词）
+        let deleteKeyword = L("删除")
+        guard deleteConfirmText == deleteKeyword else {
+            print("   ❌ 确认文本不匹配，取消删除")
+            deleteConfirmText = ""
+            return
+        }
+
+        do {
+            print("   调用 AuthManager.deleteAccount()")
+            try await authManager.deleteAccount()
+            print("   ✅ 账户删除成功")
+            deleteConfirmText = ""
+        } catch {
+            print("   ❌ 删除账户失败: \(error.localizedDescription)")
+            deleteErrorMessage = String(format: L("删除账户失败：%@"), error.localizedDescription)
+            showDeleteError = true
+            deleteConfirmText = ""
+        }
     }
 }
 

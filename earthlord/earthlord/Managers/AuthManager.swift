@@ -404,6 +404,65 @@ class AuthManager: ObservableObject {
         print("🚪 登出流程结束")
     }
 
+    /// 删除用户账户
+    /// - Note: 调用 Supabase 边缘函数永久删除账户
+    func deleteAccount() async throws {
+        print("🗑️ 开始删除账户流程...")
+        print("   当前用户: \(currentUser?.email ?? "未知")")
+
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // 获取当前会话的 access token
+            print("   步骤 1: 获取当前会话...")
+            let session = try await supabase.auth.session
+
+            print("   步骤 2: 调用边缘函数 delete-account...")
+            print("   使用 token: \(session.accessToken.prefix(20))...")
+
+            // 调用边缘函数删除账户
+            let response: DeleteAccountResponse = try await supabase.functions.invoke(
+                "delete-account",
+                options: FunctionInvokeOptions(
+                    method: .post
+                )
+            )
+
+            print("   步骤 3: 解析响应...")
+            print("   ✅ 边缘函数调用成功")
+            print("   账户删除成功!")
+            print("   删除的用户 ID: \(response.deleted_user_id)")
+            print("   删除的邮箱: \(response.deleted_user_email)")
+
+            // 清除本地状态
+            print("   步骤 4: 清除本地状态...")
+            isAuthenticated = false
+            needsPasswordSetup = false
+            currentUser = nil
+            otpSent = false
+            otpVerified = false
+
+            print("✅ 账户删除完成，已清除本地数据")
+
+        } catch let error as DeleteAccountError {
+            // 已知错误类型
+            errorMessage = error.localizedDescription
+            print("❌ 删除账户失败: \(error.localizedDescription)")
+            throw error
+
+        } catch {
+            // 未知错误
+            let errorMsg = "删除账户失败: \(error.localizedDescription)"
+            errorMessage = errorMsg
+            print("❌ \(errorMsg)")
+            throw DeleteAccountError.serverError(error.localizedDescription)
+        }
+
+        isLoading = false
+        print("🗑️ 删除账户流程结束")
+    }
+
     /// 检查当前会话
     /// - Note: 应用启动时调用，恢复登录状态
     func checkSession() async {
@@ -444,5 +503,33 @@ class AuthManager: ObservableObject {
         }
 
         isLoading = false
+    }
+}
+
+// MARK: - 删除账户相关数据模型
+
+/// 删除账户成功响应
+struct DeleteAccountResponse: Codable {
+    let success: Bool
+    let message: String
+    let deleted_user_id: String
+    let deleted_user_email: String
+}
+
+/// 删除账户错误
+enum DeleteAccountError: LocalizedError {
+    case serverError(String)
+    case networkError
+    case unauthorized
+
+    var errorDescription: String? {
+        switch self {
+        case .serverError(let message):
+            return message
+        case .networkError:
+            return "网络连接失败，请检查网络后重试"
+        case .unauthorized:
+            return "未授权，请重新登录"
+        }
     }
 }

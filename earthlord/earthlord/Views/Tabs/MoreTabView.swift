@@ -9,6 +9,29 @@ struct MoreTabView: View {
 
                 List {
                     Section {
+                        NavigationLink(destination: NetworkDiagnosticsView()) {
+                            HStack(spacing: 16) {
+                                Image(systemName: "network.badge.shield.half.filled")
+                                    .font(.title2)
+                                    .foregroundColor(ApocalypseTheme.primary)
+                                    .frame(width: 40)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(LocalizedStringKey("网络诊断工具"))
+                                        .font(.headline)
+                                        .foregroundColor(ApocalypseTheme.textPrimary)
+
+                                    Text(LocalizedStringKey("测试 Supabase 连接和诊断问题"))
+                                        .font(.caption)
+                                        .foregroundColor(ApocalypseTheme.textSecondary)
+                                }
+
+                                Spacer()
+                            }
+                            .padding(.vertical, 8)
+                        }
+                        .listRowBackground(ApocalypseTheme.cardBackground)
+
                         NavigationLink(destination: SupabaseTestView()) {
                             HStack(spacing: 16) {
                                 Image(systemName: "network")
@@ -17,11 +40,11 @@ struct MoreTabView: View {
                                     .frame(width: 40)
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Supabase 连接测试")
+                                    Text(LocalizedStringKey("Supabase 连接测试"))
                                         .font(.headline)
                                         .foregroundColor(ApocalypseTheme.textPrimary)
 
-                                    Text("测试数据库连接状态")
+                                    Text(LocalizedStringKey("测试数据库连接状态"))
                                         .font(.caption)
                                         .foregroundColor(ApocalypseTheme.textSecondary)
                                 }
@@ -32,7 +55,7 @@ struct MoreTabView: View {
                         }
                         .listRowBackground(ApocalypseTheme.cardBackground)
                     } header: {
-                        Text("开发工具")
+                        Text(LocalizedStringKey("开发工具"))
                             .foregroundColor(ApocalypseTheme.textSecondary)
                     }
                 }

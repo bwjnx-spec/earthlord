@@ -10,15 +10,30 @@
 		8D12EA872F0BE34200654459 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 8D12EA862F0BE34200654459 /* GoogleSignIn */; };
 		8D12EA892F0BE34200654459 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 8D12EA882F0BE34200654459 /* GoogleSignInSwift */; };
 		8D2024852EFEBB3400A5DE70 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 8D2024842EFEBB3400A5DE70 /* Supabase */; };
+		8DFCECA02F0EAA2A003EA7C6 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 8DFCEC9F2F0EAA2A003EA7C6 /* Localizable.xcstrings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		8D11CFFE2EFACC2300ECDF0A /* earthlord.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = earthlord.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8DFCEC9F2F0EAA2A003EA7C6 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8D11D0102EFACC2300ECDF0A /* Exceptions for "earthlord" folder in "earthlord" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8D11CFFD2EFACC2300ECDF0A /* earthlord */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8D11D0002EFACC2300ECDF0A /* earthlord */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8D11D0102EFACC2300ECDF0A /* Exceptions for "earthlord" folder in "earthlord" target */,
+			);
 			path = earthlord;
 			sourceTree = "<group>";
 		};
@@ -41,6 +56,7 @@
 		8D11CFF52EFACC2300ECDF0A = {
 			isa = PBXGroup;
 			children = (
+				8DFCEC9F2F0EAA2A003EA7C6 /* Localizable.xcstrings */,
 				8D11D0002EFACC2300ECDF0A /* earthlord */,
 				8D11CFFF2EFACC2300ECDF0A /* Products */,
 			);
@@ -98,11 +114,12 @@
 				};
 			};
 			buildConfigurationList = 8D11CFF92EFACC2300ECDF0A /* Build configuration list for PBXProject "earthlord" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
 			);
 			mainGroup = 8D11CFF52EFACC2300ECDF0A;
 			minimizedProjectReferenceProxies = 1;
@@ -125,6 +142,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8DFCECA02F0EAA2A003EA7C6 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -200,6 +218,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -256,6 +275,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -267,8 +287,9 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9J6Y9H8RPJ;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = earthlord/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -299,8 +320,9 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9J6Y9H8RPJ;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = earthlord/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

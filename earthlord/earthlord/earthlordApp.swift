@@ -15,6 +15,8 @@ import GoogleSignIn
 struct earthlordApp: App {
     /// 全局认证管理器
     @StateObject private var authManager = AuthManager(supabase: supabaseClient)
+    /// 语言管理器
+    @StateObject private var languageManager = LanguageManager.shared
 
     var body: some Scene {
         WindowGroup {
@@ -35,6 +37,9 @@ struct earthlordApp: App {
                         }
                 }
             }
+            .environment(\.locale, languageManager.currentLocale)
+            .environmentObject(languageManager)
+            .id(languageManager.refreshID) // 语言切换时强制刷新整个视图树
             .onAppear {
                 print("🚀 应用启动")
 

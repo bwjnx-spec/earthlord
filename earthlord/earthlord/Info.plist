@@ -2,10 +2,20 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Google Sign-In URL Scheme -->
-	<!-- Reversed Client ID 用于处理 Google 登录回调 -->
-	<!-- Client ID: 431220526072-jadsbrvusm6budts89a10t3nj97f0ftc.apps.googleusercontent.com -->
-	<!-- Reversed Client ID: com.googleusercontent.apps.431220526072-jadsbrvusm6budts89a10t3nj97f0ftc -->
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh-Hans</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -13,25 +23,46 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.431220526072-jadsbrvusm6budts89a10t3nj97f0ftc</string>
+				<string>com.googleusercontent.apps.660661272206-pj56olbm84qkqfnb5dfh9g0vgflvd09l</string>
 			</array>
 		</dict>
 	</array>
-
-	<!-- 应用名称 -->
-	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
-
-	<!-- 应用显示名称 -->
-	<key>CFBundleDisplayName</key>
-	<string>地球新主</string>
-
-	<!-- App 传输安全设置（允许所有网络连接） -->
-	<!-- 注意：仅用于开发测试，生产环境应配置具体的域名 -->
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>GIDClientID</key>
+	<string>660661272206-pj56olbm84qkqfnb5dfh9g0vgflvd09l.apps.googleusercontent.com</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>《地球新主》需要获取您的位置来显示您在末日世界中的坐标，帮助您探索和圈定领地。</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>《地球新主》需要获取您的位置来显示您在末日世界中的坐标，帮助您探索和圈定领地。</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
 </dict>
 </plist>

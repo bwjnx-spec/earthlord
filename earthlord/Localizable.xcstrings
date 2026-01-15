@@ -1,0 +1,643 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "%lld秒后重发" : {
+
+    },
+    "💡 提示：查看 SUPABASE_CONNECTION_ISSUE.md 获取详细解决方案" : {
+
+    },
+    "6位验证码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6-digit code"
+          }
+        }
+      }
+    },
+    "EARTH LORD" : {
+
+    },
+    "English" : {
+
+    },
+    "Google 登录中..." : {
+
+    },
+    "ID: %@..." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID: %@..."
+          }
+        }
+      }
+    },
+    "Key" : {
+      "extractionState" : "manual"
+    },
+    "Key 1" : {
+      "extractionState" : "manual"
+    },
+    "Supabase 连接测试" : {
+
+    },
+    "Supabase 项目已暂停" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supabase project is paused"
+          }
+        }
+      }
+    },
+    "两次密码不一致" : {
+
+    },
+    "个人" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile"
+          }
+        }
+      }
+    },
+    "个人中心" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile"
+          }
+        }
+      }
+    },
+    "使用 Apple 登录" : {
+
+    },
+    "使用 Google 登录" : {
+
+    },
+    "关于" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About"
+          }
+        }
+      }
+    },
+    "关闭" : {
+
+    },
+    "删除" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "delete"
+          }
+        }
+      }
+    },
+    "删除失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Failed"
+          }
+        }
+      }
+    },
+    "删除账户" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Account"
+          }
+        }
+      }
+    },
+    "删除账户失败：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to delete account: %@"
+          }
+        }
+      }
+    },
+    "前往设置" : {
+
+    },
+    "危险操作" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dangerous Operation"
+          }
+        }
+      }
+    },
+    "发送中..." : {
+
+    },
+    "发送验证码" : {
+
+    },
+    "取消" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "可能的问题" : {
+
+    },
+    "地图" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Map"
+          }
+        }
+      }
+    },
+    "地球新主" : {
+
+    },
+    "如果你能看到这个界面，说明视图渲染正常" : {
+
+    },
+    "完成注册" : {
+
+    },
+    "密码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password"
+          }
+        }
+      }
+    },
+    "密码、隐私设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password & Privacy"
+          }
+        }
+      }
+    },
+    "密码（至少6位）" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password (at least 6 characters)"
+          }
+        }
+      }
+    },
+    "密码至少需要6位" : {
+
+    },
+    "已登录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logged In"
+          }
+        }
+      }
+    },
+    "开发工具" : {
+
+    },
+    "开始测试" : {
+
+    },
+    "当前系统语言" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current system language"
+          }
+        }
+      }
+    },
+    "当前系统语言：English" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current system language: English"
+          }
+        }
+      }
+    },
+    "当前系统语言：简体中文" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current system language: 简体中文"
+          }
+        }
+      }
+    },
+    "忘记密码？" : {
+
+    },
+    "或" : {
+
+    },
+    "或者使用以下方式登录" : {
+
+    },
+    "找回密码" : {
+
+    },
+    "新密码（至少6位）" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New password (at least 6 characters)"
+          }
+        }
+      }
+    },
+    "更多" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        }
+      }
+    },
+    "未知用户" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown User"
+          }
+        }
+      }
+    },
+    "正在定位..." : {
+
+    },
+    "正在测试..." : {
+
+    },
+    "此操作不可撤销！删除账户将永久清除所有数据。\n\n请在下方输入\"删除\"以确认操作。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This action cannot be undone! Deleting your account will permanently erase all data.\n\nPlease type \"delete\" below to confirm."
+          }
+        }
+      }
+    },
+    "没收到验证码？" : {
+
+    },
+    "注册" : {
+
+    },
+    "注册中..." : {
+
+    },
+    "测试 Supabase 服务器连接" : {
+
+    },
+    "测试 Supabase 连接和诊断问题" : {
+
+    },
+    "测试：登录页面" : {
+
+    },
+    "测试中..." : {
+
+    },
+    "测试数据库连接状态" : {
+
+    },
+    "测试目标" : {
+
+    },
+    "测试结果" : {
+
+    },
+    "测试连接" : {
+
+    },
+    "版本 1.0.0" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version 1.0.0"
+          }
+        }
+      }
+    },
+    "登录" : {
+
+    },
+    "登录中..." : {
+
+    },
+    "确定" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm"
+          }
+        }
+      }
+    },
+    "确定要退出登录吗？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Are you sure you want to sign out?"
+          }
+        }
+      }
+    },
+    "确认删除" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm Delete"
+          }
+        }
+      }
+    },
+    "确认密码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm Password"
+          }
+        }
+      }
+    },
+    "确认新密码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm New Password"
+          }
+        }
+      }
+    },
+    "确认退出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm Sign Out"
+          }
+        }
+      }
+    },
+    "简体中文" : {
+
+    },
+    "管理你的领地" : {
+
+    },
+    "管理推送通知" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage push notifications"
+          }
+        }
+      }
+    },
+    "网络诊断" : {
+
+    },
+    "网络诊断工具" : {
+
+    },
+    "网络连接问题" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Network connection issues"
+          }
+        }
+      }
+    },
+    "设置新密码" : {
+
+    },
+    "设置登录密码" : {
+
+    },
+    "语言已切换" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language changed"
+          }
+        }
+      }
+    },
+    "语言设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language"
+          }
+        }
+      }
+    },
+    "请在系统设置中开启定位权限，以便在末日世界中显示您的位置" : {
+
+    },
+    "请输入\"删除\"以确认" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please type \"delete\" to confirm"
+          }
+        }
+      }
+    },
+    "账户安全" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account Security"
+          }
+        }
+      }
+    },
+    "跟随系统" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System Default"
+          }
+        }
+      }
+    },
+    "输入注册邮箱获取验证码" : {
+
+    },
+    "输入邮箱获取验证码" : {
+
+    },
+    "这里是分支宇宙的测试页" : {
+
+    },
+    "退出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exit"
+          }
+        }
+      }
+    },
+    "退出登录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Out"
+          }
+        }
+      }
+    },
+    "选择您偏好的显示语言" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose your preferred display language"
+          }
+        }
+      }
+    },
+    "通知设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        }
+      }
+    },
+    "邮箱" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Email"
+          }
+        }
+      }
+    },
+    "重新发送" : {
+
+    },
+    "重置中..." : {
+
+    },
+    "重置密码" : {
+
+    },
+    "防火墙或 VPN" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Firewall or VPN"
+          }
+        }
+      }
+    },
+    "需要定位权限" : {
+
+    },
+    "领地" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Territory"
+          }
+        }
+      }
+    },
+    "验证" : {
+
+    },
+    "验证中..." : {
+
+    },
+    "验证码已发送到 %@" : {
+
+    }
+  },
+  "version" : "1.1"
+}
