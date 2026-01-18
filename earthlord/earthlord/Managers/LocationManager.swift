@@ -3,11 +3,13 @@
 //  earthlord
 //
 //  GPS 定位管理器 - 负责获取用户位置和管理定位权限
+//  扩展支持路径追踪功能（圈地模式）
 //
 
 import Foundation
 import CoreLocation
 import Combine  // ⚠️ @Published 需要这个框架
+import Network  // 网络状态监控
 
 /// GPS 定位管理器
 class LocationManager: NSObject, ObservableObject {
@@ -26,10 +28,115 @@ class LocationManager: NSObject, ObservableObject {
     /// 是否正在定位中
     @Published var isLocating: Bool = false
 
+    // MARK: - 路径追踪属性
+
+    /// 是否正在圈地追踪中
+    @Published var isTracking: Bool = false
+
+    /// 路径坐标数组（GCJ-02 坐标，用于地图显示）
+    @Published var pathCoordinates: [CLLocationCoordinate2D] = []
+
+    /// 路径更新版本号（用于触发地图刷新）
+    @Published var pathUpdateVersion: Int = 0
+
+    /// 路径是否已闭合
+    @Published var isPathClosed: Bool = false
+
+    /// 速度警告信息
+    @Published var speedWarning: String?
+
+    /// 是否超速
+    @Published var isOverSpeed: Bool = false
+
+    // MARK: - 验证状态属性
+
+    /// 领地验证是否通过
+    @Published var territoryValidationPassed: Bool = false
+
+    /// 领地验证错误信息
+    @Published var territoryValidationError: String? = nil
+
+    /// 计算得到的领地面积（平方米）
+    @Published var calculatedArea: Double = 0
+
+    /// 当前位置（Timer 采点用）
+    var currentLocation: CLLocation?
+
+    /// 路径采点定时器
+    private var pathUpdateTimer: Timer?
+
+    /// 日志管理器
+    private let logger = TerritoryLogger.shared
+
+    /// 是否运行在模拟器上
+    private var isRunningOnSimulator: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    /// 最小采点距离（米）- 模拟器中降低要求以便测试
+    private var minRecordDistance: Double {
+        if isRunningOnSimulator {
+            return 0.5  // 模拟器中降低到 0.5 米（GPS 可能有微小漂移）
+        } else {
+            return 3.0  // 真机上保持 3 米
+        }
+    }
+
+    /// 采点间隔（秒）
+    private let recordInterval: TimeInterval = 2.0
+
+    /// 闭环距离阈值（米）
+    private let closureDistanceThreshold: Double = 30.0
+
+    // MARK: - 验证常量
+
+    /// 最少路径点数（闭环检测前提条件）- 模拟器中降低要求
+    private var minimumPathPoints: Int {
+        if isRunningOnSimulator {
+            return 4  // 模拟器中降低到 4 个点
+        } else {
+            return 10
+        }
+    }
+
+    /// 最小行走距离（米）- 模拟器中降低要求
+    private var minimumTotalDistance: Double {
+        if isRunningOnSimulator {
+            return 5.0  // 模拟器中降低到 5 米
+        } else {
+            return 50.0
+        }
+    }
+
+    /// 最小领地面积（平方米）- 模拟器中降低要求
+    private var minimumEnclosedArea: Double {
+        if isRunningOnSimulator {
+            return 10.0  // 模拟器中降低到 10 平方米
+        } else {
+            return 100.0
+        }
+    }
+
+    /// 上次记录位置的时间戳（用于速度计算）- 使用 GPS 时间戳，不是系统时间
+    private var lastLocationTimestamp: Date?
+
     // MARK: - Private Properties
 
     /// CoreLocation 定位管理器
     private let locationManager = CLLocationManager()
+
+    /// 网络状态监控器
+    private let networkMonitor = NWPathMonitor()
+
+    /// 网络监控队列
+    private let networkQueue = DispatchQueue(label: "com.earthlord.network")
+
+    /// 当前网络类型（用于检测切换）
+    private var currentNetworkType: NWInterface.InterfaceType?
 
     // MARK: - Computed Properties
 
@@ -66,8 +173,28 @@ class LocationManager: NSObject, ObservableObject {
         locationManager.desiredAccuracy = kCLLocationAccuracyBest  // 最高精度
         locationManager.distanceFilter = 10  // 移动10米才更新位置
 
+        // ⚠️ 关键配置：确保在网络切换时继续定位
+        locationManager.allowsBackgroundLocationUpdates = false  // 不需要后台定位
+        locationManager.pausesLocationUpdatesAutomatically = false  // 不自动暂停
+        locationManager.activityType = .fitness  // 健身模式（步行、跑步等）
+
         print("📍 LocationManager 初始化完成")
         print("   当前授权状态: \(authorizationStatusDescription)")
+
+        // 显示运行环境
+        if isRunningOnSimulator {
+            print("⚠️ 运行在模拟器上 - 已启用测试模式")
+            print("   采点距离要求: \(minRecordDistance)m (真机: 3.0m)")
+            print("   最少点数: \(minimumPathPoints) (真机: 10)")
+            print("   最小距离: \(minimumTotalDistance)m (真机: 50m)")
+            print("   最小面积: \(minimumEnclosedArea)m² (真机: 100m²)")
+            print("   💡 提示: 使用 Xcode 的 Features → Location 菜单模拟位置移动")
+        } else {
+            print("✅ 运行在真机上 - 使用生产配置")
+        }
+
+        // 启动网络状态监控
+        setupNetworkMonitoring()
     }
 
     // MARK: - Public Methods
@@ -117,6 +244,539 @@ class LocationManager: NSObject, ObservableObject {
         return userLocation
     }
 
+    // MARK: - 路径追踪方法
+
+    /// 开始路径追踪（圈地模式）
+    func startPathTracking() {
+        guard isAuthorized else {
+            print("⚠️ 未授权定位，无法开始圈地")
+            locationError = "请先授权定位权限"
+            return
+        }
+
+        print("🏃 开始圈地追踪...")
+        logger.startTracking()
+
+        // 重置状态
+        pathCoordinates = []
+        lastRawLocation = nil
+        isPathClosed = false
+        isTracking = true
+        pathUpdateVersion += 1
+        speedWarning = nil
+        isOverSpeed = false
+        lastLocationTimestamp = nil
+
+        // 重置验证状态
+        territoryValidationPassed = false
+        territoryValidationError = nil
+        calculatedArea = 0
+
+        // ⚠️ 圈地模式：降低距离过滤器，确保更频繁接收位置更新
+        // 这对网络切换场景很重要
+        locationManager.distanceFilter = kCLDistanceFilterNone  // 接收所有位置更新
+        locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation  // 最高精度（导航级别）
+        print("📍 已切换到高频定位模式（无距离过滤）")
+
+        // 确保定位已开启
+        startUpdatingLocation()
+
+        // 如果有当前位置，立即记录第一个点
+        if let location = currentLocation {
+            recordPathPoint(from: location)
+            lastRawLocation = location
+            print("✅ 立即记录起始点")
+
+            // 延迟1秒后再记录一个点，确保至少有2个点可以显示轨迹
+            // 注意：即使位置相同也记录，目的是让用户能立即看到轨迹
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                guard let self = self, self.isTracking else { return }
+                if let location = self.currentLocation {
+                    self.recordPathPoint(from: location)
+                    print("✅ 记录第二个初始点（确保轨迹可见）")
+                }
+            }
+        }
+
+        // 启动定时器，每2秒检查一次
+        pathUpdateTimer = Timer.scheduledTimer(withTimeInterval: recordInterval, repeats: true) { [weak self] _ in
+            self?.checkAndRecordPoint()
+        }
+
+        print("⏱️ 采点定时器已启动，间隔 \(recordInterval) 秒")
+    }
+
+    /// 停止路径追踪
+    func stopPathTracking() {
+        print("🛑 停止圈地追踪")
+        logger.stopTracking()
+
+        // 停止定时器
+        pathUpdateTimer?.invalidate()
+        pathUpdateTimer = nil
+
+        // 闭合路径（如果有足够的点）
+        if pathCoordinates.count >= 3 {
+            // 添加起点作为终点，形成闭合路径
+            if let firstPoint = pathCoordinates.first {
+                pathCoordinates.append(firstPoint)
+                isPathClosed = true
+                pathUpdateVersion += 1
+                print("✅ 路径已闭合，共 \(pathCoordinates.count) 个点")
+            }
+        } else {
+            print("⚠️ 点数不足（至少需要3个点），无法闭合路径")
+        }
+
+        isTracking = false
+
+        // 恢复正常的距离过滤器
+        locationManager.distanceFilter = 10  // 恢复为10米过滤
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        print("📍 已恢复正常定位模式（10米过滤）")
+    }
+
+    /// 清空路径
+    func clearPath() {
+        print("🗑️ 清空路径")
+        pathCoordinates = []
+        isPathClosed = false
+        pathUpdateVersion += 1
+    }
+
+    /// 上一个原始位置（WGS-84，用于距离计算）
+    private var lastRawLocation: CLLocation?
+
+    /// 检查并记录路径点
+    /// ⚠️ 关键：先检查距离，再检查速度！顺序不能反！
+    private func checkAndRecordPoint() {
+        print("\n━━━━━━ 📍 检查采点开始 ━━━━━━")
+
+        guard isTracking else {
+            print("⚠️ 检查采点：未在追踪状态")
+            return
+        }
+
+        guard let location = currentLocation else {
+            print("⚠️ 检查采点：无当前位置")
+            logger.log("警告：定时器触发但无位置更新，可能 GPS 信号丢失", type: .warning)
+            return
+        }
+
+        // 显示位置时间戳，用于调试
+        let locationAge = Date().timeIntervalSince(location.timestamp)
+        print("📍 当前位置: (\(String(format: "%.6f", location.coordinate.latitude)), \(String(format: "%.6f", location.coordinate.longitude)))")
+        print("📅 位置时间戳: \(location.timestamp)")
+        print("⏱️ 位置年龄: \(String(format: "%.1f", locationAge))秒")
+
+        // 如果位置太旧（超过 10 秒），警告但继续处理
+        if locationAge > 10 {
+            print("⚠️ 位置数据较旧（\(String(format: "%.1f", locationAge))秒前），可能GPS信号不稳定")
+            logger.log("位置数据较旧（\(String(format: "%.1f", locationAge))秒前），GPS 信号可能不稳定", type: .warning)
+        }
+
+        // 步骤1：先检查距离（过滤 GPS 漂移，距离不够就直接返回）
+        if let lastLocation = lastRawLocation {
+            let distance = location.distance(from: lastLocation)
+            print("📏 步骤1 - 距离检查:")
+            print("   上次位置: (\(String(format: "%.6f", lastLocation.coordinate.latitude)), \(String(format: "%.6f", lastLocation.coordinate.longitude)))")
+            print("   本次位置: (\(String(format: "%.6f", location.coordinate.latitude)), \(String(format: "%.6f", location.coordinate.longitude)))")
+            print("   距离: \(String(format: "%.1f", distance))m")
+            print("   要求: ≥ \(String(format: "%.1f", minRecordDistance))m")
+
+            // 距离不够，不进行速度检测，直接返回
+            guard distance >= minRecordDistance else {
+                print("❌ 距离不足，跳过采点")
+                print("━━━━━━ 检查采点结束（距离不足）━━━━━━\n")
+                return
+            }
+
+            print("✅ 距离检查通过")
+        } else {
+            print("📏 步骤1 - 距离检查: 首次记录，无需距离检查")
+        }
+
+        // 步骤2：再检查速度（只对真实移动进行检测）
+        print("🚗 步骤2 - 速度检查:")
+        guard validateMovementSpeed(newLocation: location) else {
+            print("❌ 严重超速，不记录该点")
+            print("━━━━━━ 检查采点结束（超速）━━━━━━\n")
+            return
+        }
+        print("✅ 速度检查通过")
+
+        // 步骤3：记录新点
+        print("💾 步骤3 - 记录新点:")
+        recordPathPoint(from: location)
+        lastRawLocation = location
+        // ⚠️ 关键：使用 GPS 时间戳，不是系统时间
+        lastLocationTimestamp = location.timestamp
+        print("   已更新 lastRawLocation")
+        print("   已更新 lastLocationTimestamp: \(location.timestamp)")
+
+        // 步骤4：检测闭环
+        print("🔍 步骤4 - 检测闭环")
+        checkPathClosure()
+
+        print("━━━━━━ 检查采点结束（成功）━━━━━━\n")
+    }
+
+    /// 记录路径点（WGS-84 → GCJ-02 转换）
+    private func recordPathPoint(from location: CLLocation) {
+        // 转换为 GCJ-02 坐标（中国地图使用）
+        let gcjCoord = CoordinateConverter.wgs84ToGcj02(location.coordinate)
+
+        pathCoordinates.append(gcjCoord)
+        pathUpdateVersion += 1
+
+        print("📍 记录路径点 #\(pathCoordinates.count): (\(String(format: "%.6f", gcjCoord.latitude)), \(String(format: "%.6f", gcjCoord.longitude)))")
+
+        // 记录到日志
+        logger.updateStats(newPoint: gcjCoord, totalPoints: pathCoordinates.count)
+    }
+
+    /// 验证移动速度（防止作弊）
+    /// - Parameter newLocation: 新位置
+    /// - Returns: true 表示可以记录该点，false 表示严重超速不记录
+    private func validateMovementSpeed(newLocation: CLLocation) -> Bool {
+        // 首次记录，没有上一个点，直接通过
+        guard let lastLocation = lastRawLocation,
+              let lastTimestamp = lastLocationTimestamp else {
+            print("   ℹ️ 首次记录，跳过速度检测")
+            return true
+        }
+
+        print("   📊 速度检测详情:")
+
+        // 计算距离（米）
+        let distance = newLocation.distance(from: lastLocation)
+        print("      距离: \(String(format: "%.2f", distance))m")
+
+        // ⚠️ 关键：计算时间差，使用 GPS 时间戳，不是系统时间
+        let timeInterval = newLocation.timestamp.timeIntervalSince(lastTimestamp)
+        print("      上次时间: \(lastTimestamp)")
+        print("      本次时间: \(newLocation.timestamp)")
+        print("      时间差: \(String(format: "%.2f", timeInterval))秒")
+
+        // 防止除零错误和负数时间（GPS 时间戳异常）
+        guard timeInterval > 0.1 else {
+            print("      ⚠️ 时间差异常（\(String(format: "%.2f", timeInterval))秒），跳过速度检测")
+            return true
+        }
+
+        // 计算速度（km/h）
+        let speedMetersPerSecond = distance / timeInterval
+        let speedKmPerHour = speedMetersPerSecond * 3.6
+        print("      计算速度: \(String(format: "%.2f", distance))m ÷ \(String(format: "%.2f", timeInterval))s = \(String(format: "%.2f", speedMetersPerSecond)) m/s")
+        print("      速度: \(String(format: "%.1f", speedKmPerHour)) km/h")
+
+        // 记录速度到日志
+        logger.updateSpeed(speed: speedKmPerHour)
+
+        // 判断速度范围
+        print("      判断速度范围:")
+
+        // 速度 > 30 km/h：严重超速，停止追踪
+        if speedKmPerHour > 30 {
+            print("      ❌ 严重超速 (> 30 km/h) → 停止追踪")
+            speedWarning = "速度过快 (\(String(format: "%.0f", speedKmPerHour)) km/h)，已自动停止圈地"
+            isOverSpeed = true
+
+            // 记录严重超速日志
+            logger.logSpeedWarning(speed: speedKmPerHour, isSevere: true)
+
+            // 延迟停止追踪（给用户看到警告的时间）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.stopPathTracking()
+            }
+
+            return false
+        }
+
+        // 速度 > 15 km/h：警告但继续记录
+        if speedKmPerHour > 15 {
+            print("      ⚠️ 速度警告 (15-30 km/h) → 继续记录但警告")
+            speedWarning = "移动速度较快 (\(String(format: "%.0f", speedKmPerHour)) km/h)，请保持步行速度"
+            isOverSpeed = true
+
+            // 记录速度警告日志
+            logger.logSpeedWarning(speed: speedKmPerHour, isSevere: false)
+
+            // 3秒后自动清除警告
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                self?.speedWarning = nil
+                self?.isOverSpeed = false
+            }
+
+            return true
+        }
+
+        // 速度正常
+        print("      ✅ 速度正常 (≤ 15 km/h)")
+        speedWarning = nil
+        isOverSpeed = false
+        return true
+    }
+
+    /// 检测路径是否闭合
+    private func checkPathClosure() {
+        // 已经闭合，跳过检测
+        guard !isPathClosed else { return }
+
+        // 点数不足，无法检测
+        guard pathCoordinates.count >= minimumPathPoints else {
+            print("🔍 闭环检测: 点数不足 (\(pathCoordinates.count)/\(minimumPathPoints))")
+            return
+        }
+
+        // 获取起点和当前点
+        guard let startPoint = pathCoordinates.first,
+              let currentPoint = pathCoordinates.last else {
+            return
+        }
+
+        // 计算当前点到起点的距离（使用 WGS-84 坐标计算）
+        let startLocation = CLLocation(latitude: startPoint.latitude, longitude: startPoint.longitude)
+        let currentLocation = CLLocation(latitude: currentPoint.latitude, longitude: currentPoint.longitude)
+        let distanceToStart = currentLocation.distance(from: startLocation)
+
+        print("🔍 闭环检测: 距离起点 \(String(format: "%.1f", distanceToStart))m (阈值: \(closureDistanceThreshold)m)")
+
+        // 记录距离到起点的日志
+        logger.updateDistanceToStart(distance: distanceToStart)
+
+        // 距离小于阈值，闭环成功
+        let isClosed = distanceToStart <= closureDistanceThreshold
+        if isClosed {
+            isPathClosed = true
+            pathUpdateVersion += 1
+            print("✅ 🎉 闭环检测成功！路径已闭合，共 \(pathCoordinates.count) 个点")
+            print("   起点: (\(String(format: "%.6f", startPoint.latitude)), \(String(format: "%.6f", startPoint.longitude)))")
+            print("   终点: (\(String(format: "%.6f", currentPoint.latitude)), \(String(format: "%.6f", currentPoint.longitude)))")
+            print("   距离: \(String(format: "%.1f", distanceToStart))m")
+        }
+
+        // 记录闭环检测结果到日志
+        logger.logClosureCheck(
+            pointCount: pathCoordinates.count,
+            distanceToStart: distanceToStart,
+            threshold: closureDistanceThreshold,
+            isClosed: isClosed
+        )
+
+        // 闭环成功后，自动触发验证
+        if isClosed {
+            print("🔍 开始执行领地验证...")
+            let result = validateTerritory()
+            territoryValidationPassed = result.isValid
+            territoryValidationError = result.errorMessage
+            print("🔍 验证结果: \(result.isValid ? "通过 ✅" : "失败 ❌") - \(result.errorMessage ?? "无错误")")
+        }
+    }
+
+    // MARK: - 距离与面积计算
+
+    /// 计算路径总距离
+    /// - Returns: 总距离（米）
+    private func calculateTotalPathDistance() -> Double {
+        guard pathCoordinates.count >= 2 else { return 0 }
+
+        var totalDistance: Double = 0
+
+        for i in 0..<pathCoordinates.count - 1 {
+            let current = pathCoordinates[i]
+            let next = pathCoordinates[i + 1]
+
+            let loc1 = CLLocation(latitude: current.latitude, longitude: current.longitude)
+            let loc2 = CLLocation(latitude: next.latitude, longitude: next.longitude)
+
+            totalDistance += loc1.distance(from: loc2)
+        }
+
+        return totalDistance
+    }
+
+    /// 计算多边形面积（使用鞋带公式，考虑地球曲率）
+    /// - Returns: 面积（平方米）
+    private func calculatePolygonArea() -> Double {
+        guard pathCoordinates.count >= 3 else { return 0 }
+
+        let earthRadius: Double = 6371000  // 地球半径（米）
+        var area: Double = 0
+
+        for i in 0..<pathCoordinates.count {
+            let current = pathCoordinates[i]
+            let next = pathCoordinates[(i + 1) % pathCoordinates.count]  // 循环取点
+
+            // 经纬度转弧度
+            let lat1 = current.latitude * .pi / 180
+            let lon1 = current.longitude * .pi / 180
+            let lat2 = next.latitude * .pi / 180
+            let lon2 = next.longitude * .pi / 180
+
+            // 鞋带公式（球面修正）
+            area += (lon2 - lon1) * (2 + sin(lat1) + sin(lat2))
+        }
+
+        area = abs(area * earthRadius * earthRadius / 2.0)
+
+        return area
+    }
+
+    // MARK: - 自相交检测
+
+    /// 判断两条线段是否相交（使用 CCW 算法）
+    /// - Parameters:
+    ///   - p1: 线段1的起点
+    ///   - p2: 线段1的终点
+    ///   - p3: 线段2的起点
+    ///   - p4: 线段2的终点
+    /// - Returns: true 表示相交
+    private func segmentsIntersect(p1: CLLocationCoordinate2D, p2: CLLocationCoordinate2D,
+                                    p3: CLLocationCoordinate2D, p4: CLLocationCoordinate2D) -> Bool {
+        /// CCW 辅助函数：判断三点是否逆时针排列
+        /// - 叉积 > 0 表示逆时针
+        func ccw(_ A: CLLocationCoordinate2D, _ B: CLLocationCoordinate2D, _ C: CLLocationCoordinate2D) -> Bool {
+            // ⚠️ 坐标映射：longitude = X轴，latitude = Y轴
+            let crossProduct = (C.latitude - A.latitude) * (B.longitude - A.longitude) -
+                               (B.latitude - A.latitude) * (C.longitude - A.longitude)
+            return crossProduct > 0
+        }
+
+        // 判断两线段是否相交
+        return ccw(p1, p3, p4) != ccw(p2, p3, p4) &&
+               ccw(p1, p2, p3) != ccw(p1, p2, p4)
+    }
+
+    /// 检测路径是否存在自相交
+    /// - Returns: true 表示存在自相交（画了"8"字形）
+    func hasPathSelfIntersection() -> Bool {
+        // ✅ 防御性检查：至少需要4个点才可能自交
+        guard pathCoordinates.count >= 4 else { return false }
+
+        // ✅ 创建路径快照的深拷贝，避免并发修改问题
+        let pathSnapshot = Array(pathCoordinates)
+
+        // ✅ 再次检查快照是否有效
+        guard pathSnapshot.count >= 4 else { return false }
+
+        let segmentCount = pathSnapshot.count - 1
+
+        // ✅ 防御性检查：确保有足够的线段
+        guard segmentCount >= 2 else { return false }
+
+        // ✅ 闭环时需要跳过的首尾线段数量
+        let skipHeadCount = 2
+        let skipTailCount = 2
+
+        for i in 0..<segmentCount {
+            guard i < pathSnapshot.count - 1 else { break }
+
+            let p1 = pathSnapshot[i]
+            let p2 = pathSnapshot[i + 1]
+
+            let startJ = i + 2
+            guard startJ < segmentCount else { continue }
+
+            for j in startJ..<segmentCount {
+                guard j < pathSnapshot.count - 1 else { break }
+
+                // ✅ 跳过首尾附近线段的比较
+                let isHeadSegment = i < skipHeadCount
+                let isTailSegment = j >= segmentCount - skipTailCount
+
+                if isHeadSegment && isTailSegment {
+                    continue
+                }
+
+                let p3 = pathSnapshot[j]
+                let p4 = pathSnapshot[j + 1]
+
+                if segmentsIntersect(p1: p1, p2: p2, p3: p3, p4: p4) {
+                    TerritoryLogger.shared.log("自交检测: 线段\(i)-\(i+1) 与 线段\(j)-\(j+1) 相交", type: .error)
+                    return true
+                }
+            }
+        }
+
+        TerritoryLogger.shared.log("自交检测: 无交叉 ✓", type: .info)
+        return false
+    }
+
+    // MARK: - 综合验证
+
+    /// 综合验证领地是否有效
+    /// - Returns: (验证结果, 错误信息)
+    func validateTerritory() -> (isValid: Bool, errorMessage: String?) {
+        print("🔍 validateTerritory() 开始执行")
+
+        // 添加分隔符，让日志更醒目
+        TerritoryLogger.shared.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━", type: .info)
+        TerritoryLogger.shared.log("开始领地验证", type: .info)
+        print("📝 记录日志: 开始领地验证")
+
+        // 1. 点数检查
+        print("🔍 步骤1: 点数检查 - 当前点数: \(pathCoordinates.count), 要求: \(minimumPathPoints)")
+        if pathCoordinates.count < minimumPathPoints {
+            let error = "点数不足: \(pathCoordinates.count)个点 (需≥\(minimumPathPoints)个)"
+            print("❌ 点数检查失败: \(error)")
+            TerritoryLogger.shared.log("点数检查: \(error)", type: .error)
+            TerritoryLogger.shared.log("领地验证失败: \(error)", type: .error)
+            return (false, error)
+        }
+        let pointCheckMessage = "点数检查: \(pathCoordinates.count)个点 ✓"
+        print("✅ \(pointCheckMessage)")
+        TerritoryLogger.shared.log(pointCheckMessage, type: .info)
+
+        // 2. 距离检查
+        let totalDistance = calculateTotalPathDistance()
+        print("🔍 步骤2: 距离检查 - 总距离: \(String(format: "%.0f", totalDistance))m, 要求: \(String(format: "%.0f", minimumTotalDistance))m")
+        if totalDistance < minimumTotalDistance {
+            let error = "距离不足: \(String(format: "%.0f", totalDistance))m (需≥\(String(format: "%.0f", minimumTotalDistance))m)"
+            print("❌ 距离检查失败: \(error)")
+            TerritoryLogger.shared.log("距离检查: \(error)", type: .error)
+            TerritoryLogger.shared.log("领地验证失败: \(error)", type: .error)
+            return (false, error)
+        }
+        let distanceCheckMessage = "距离检查: \(String(format: "%.0f", totalDistance))m ✓"
+        print("✅ \(distanceCheckMessage)")
+        TerritoryLogger.shared.log(distanceCheckMessage, type: .info)
+
+        // 3. 自交检测
+        print("🔍 步骤3: 自交检测")
+        let hasSelfIntersection = hasPathSelfIntersection()
+        print("🔍 自交检测结果: \(hasSelfIntersection ? "有自交 ❌" : "无自交 ✅")")
+        if hasSelfIntersection {
+            let error = "轨迹自相交，请勿画8字形"
+            print("❌ 自交检测失败: \(error)")
+            TerritoryLogger.shared.log("领地验证失败: \(error)", type: .error)
+            return (false, error)
+        }
+        // 注意：hasPathSelfIntersection() 内部已经记录了 "自交检测: 无交叉 ✓" 的日志
+
+        // 4. 面积检查
+        let area = calculatePolygonArea()
+        calculatedArea = area  // 保存计算得到的面积
+        print("🔍 步骤4: 面积检查 - 面积: \(String(format: "%.0f", area))m², 要求: \(String(format: "%.0f", minimumEnclosedArea))m²")
+        if area < minimumEnclosedArea {
+            let error = "面积不足: \(String(format: "%.0f", area))m² (需≥\(String(format: "%.0f", minimumEnclosedArea))m²)"
+            print("❌ 面积检查失败: \(error)")
+            TerritoryLogger.shared.log("面积检查: \(error)", type: .error)
+            TerritoryLogger.shared.log("领地验证失败: \(error)", type: .error)
+            return (false, error)
+        }
+        let areaCheckMessage = "面积检查: \(String(format: "%.0f", area))m² ✓"
+        print("✅ \(areaCheckMessage)")
+        TerritoryLogger.shared.log(areaCheckMessage, type: .info)
+
+        // 验证通过
+        let successMessage = "圈地成功！领地面积: \(String(format: "%.0f", area))m²"
+        print("🎉 \(successMessage)")
+        TerritoryLogger.shared.log(successMessage, type: .success)
+        TerritoryLogger.shared.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━", type: .info)
+        return (true, nil)
+    }
+
     // MARK: - Private Helpers
 
     /// 授权状态描述
@@ -135,6 +795,136 @@ class LocationManager: NSObject, ObservableObject {
         @unknown default:
             return "未知"
         }
+    }
+
+    // MARK: - Network Monitoring
+
+    /// 设置网络状态监控
+    private func setupNetworkMonitoring() {
+        networkMonitor.pathUpdateHandler = { [weak self] path in
+            guard let self = self else { return }
+
+            DispatchQueue.main.async {
+                self.handleNetworkPathUpdate(path)
+            }
+        }
+
+        networkMonitor.start(queue: networkQueue)
+        print("📡 网络监控已启动")
+    }
+
+    /// 处理网络状态更新
+    private func handleNetworkPathUpdate(_ path: NWPath) {
+        let isConnected = path.status == .satisfied
+        let newNetworkType = path.availableInterfaces.first?.type
+
+        // 获取网络类型描述
+        let networkTypeDescription: String
+        if let type = newNetworkType {
+            switch type {
+            case .wifi:
+                networkTypeDescription = "WiFi"
+            case .cellular:
+                networkTypeDescription = "蜂窝数据"
+            case .wiredEthernet:
+                networkTypeDescription = "有线网络"
+            case .loopback:
+                networkTypeDescription = "回环"
+            case .other:
+                networkTypeDescription = "其他"
+            @unknown default:
+                networkTypeDescription = "未知"
+            }
+        } else {
+            networkTypeDescription = "无网络"
+        }
+
+        print("📡 网络状态: \(isConnected ? "已连接" : "未连接") - \(networkTypeDescription)")
+
+        // 检测网络切换
+        if let currentType = currentNetworkType, let newType = newNetworkType, currentType != newType {
+            let oldTypeDesc: String
+            switch currentType {
+            case .wifi:
+                oldTypeDesc = "WiFi"
+            case .cellular:
+                oldTypeDesc = "蜂窝数据"
+            default:
+                oldTypeDesc = "其他网络"
+            }
+
+            let message = "网络已切换: \(oldTypeDesc) → \(networkTypeDescription)"
+            print("⚠️ \(message)")
+
+            // 如果正在圈地，记录网络切换警告并重启定位
+            if isTracking {
+                logger.log(message, type: .warning)
+                logger.log("正在重启 GPS 定位以确保连续性...", type: .info)
+
+                // ⚠️ 关键修复：网络切换时重启定位服务
+                // 这确保了 GPS 不会因为网络切换而中断
+                print("🔄 网络切换检测到，重启定位服务...")
+                self.restartLocationUpdates()
+
+                // 延迟 0.5 秒后确认
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    guard let self = self else { return }
+                    self.logger.log("GPS 定位已重启，继续记录路径", type: .success)
+                    print("✅ GPS 定位已重启")
+                }
+            }
+        }
+
+        // 更新当前网络类型
+        currentNetworkType = newNetworkType
+
+        // 如果网络完全断开
+        if !isConnected {
+            print("⚠️ 网络已断开")
+            if isTracking {
+                logger.log("网络已断开，正在重启 GPS 定位...", type: .warning)
+
+                // ⚠️ 网络断开时也重启定位，确保纯 GPS 模式
+                print("🔄 网络断开检测到，切换到纯 GPS 模式...")
+                restartLocationUpdates()
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    guard let self = self else { return }
+                    self.logger.log("已切换到纯 GPS 模式（不依赖网络）", type: .success)
+                }
+            }
+        }
+    }
+
+    /// 重启定位服务（用于网络切换场景）
+    private func restartLocationUpdates() {
+        print("🔄 重启定位服务...")
+
+        // 保存当前配置
+        let currentAccuracy = locationManager.desiredAccuracy
+        let currentFilter = locationManager.distanceFilter
+
+        // 停止并立即重启
+        locationManager.stopUpdatingLocation()
+
+        // 延迟 0.1 秒后重启（给系统时间处理停止请求）
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+
+            // 恢复配置
+            self.locationManager.desiredAccuracy = currentAccuracy
+            self.locationManager.distanceFilter = currentFilter
+
+            // 重启定位
+            self.locationManager.startUpdatingLocation()
+            print("✅ 定位服务已重启，精度: \(currentAccuracy), 过滤: \(currentFilter)m")
+        }
+    }
+
+    /// 停止网络监控（析构时调用）
+    deinit {
+        networkMonitor.cancel()
+        print("📡 网络监控已停止")
     }
 }
 
@@ -170,10 +960,34 @@ extension LocationManager: CLLocationManagerDelegate {
         guard let location = locations.last else { return }
 
         DispatchQueue.main.async { [weak self] in
-            self?.userLocation = location.coordinate
-            self?.locationError = nil
+            guard let self = self else { return }
 
-            print("📍 位置更新: (\(location.coordinate.latitude), \(location.coordinate.longitude))")
+            // 更新当前位置（Timer 采点需要）
+            self.currentLocation = location
+            self.userLocation = location.coordinate
+            self.locationError = nil
+
+            // 检查 GPS 精度
+            let accuracy = location.horizontalAccuracy
+            let accuracyDescription: String
+            if accuracy < 0 {
+                accuracyDescription = "无效"
+            } else if accuracy <= 10 {
+                accuracyDescription = "优秀"
+            } else if accuracy <= 30 {
+                accuracyDescription = "良好"
+            } else if accuracy <= 100 {
+                accuracyDescription = "一般"
+            } else {
+                accuracyDescription = "较差"
+            }
+
+            print("📍 位置更新: (\(location.coordinate.latitude), \(location.coordinate.longitude)) - 精度: \(String(format: "%.1f", accuracy))m (\(accuracyDescription))")
+
+            // 如果正在圈地且精度较差，记录警告
+            if self.isTracking && accuracy > 50 {
+                self.logger.log("GPS 精度较差: \(String(format: "%.1f", accuracy))m，可能影响圈地准确性", type: .warning)
+            }
         }
     }
 

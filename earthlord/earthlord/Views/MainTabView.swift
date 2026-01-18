@@ -27,10 +27,10 @@ struct MainTabView: View {
                 }
                 .tag(2)
 
-            MoreTabView()
+            TestMenuView()
                 .tabItem {
-                    Image(systemName: "ellipsis")
-                    Text("更多")
+                    Image(systemName: "wrench.and.screwdriver.fill")
+                    Text("测试")
                 }
                 .tag(3)
         }

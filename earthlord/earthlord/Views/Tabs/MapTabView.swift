@@ -23,6 +23,9 @@ struct MapTabView: View {
     /// 是否需要重新居中
     @State private var shouldRecenter = false
 
+    /// 是否显示验证结果横幅
+    @State private var showValidationBanner = false
+
     // MARK: - Body
 
     var body: some View {
@@ -31,23 +34,43 @@ struct MapTabView: View {
             MapViewRepresentable(
                 userLocation: $userLocation,
                 hasLocatedUser: $hasLocatedUser,
-                shouldRecenter: $shouldRecenter
+                shouldRecenter: $shouldRecenter,
+                trackingPath: $locationManager.pathCoordinates,
+                pathUpdateVersion: $locationManager.pathUpdateVersion,
+                isPathClosed: $locationManager.isPathClosed
             )
-            .ignoresSafeArea()
+            .ignoresSafeArea(edges: .top) // 只忽略顶部安全区域，保留底部 TabBar
 
             // 覆盖层 UI
             VStack {
+                // 顶部验证结果横幅
+                if showValidationBanner {
+                    validationResultBanner
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                // 顶部速度警告横幅
+                if let warning = locationManager.speedWarning {
+                    speedWarningBanner(warning: warning)
+                        .padding(.top, showValidationBanner ? 0 : 60) // 如果有验证横幅，就不需要额外间距
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .animation(.spring(), value: locationManager.speedWarning)
+                }
+
                 Spacer()
 
                 // 底部控制栏
                 HStack {
+                    // 圈地按钮
+                    trackingButton
+
                     Spacer()
 
                     // 定位按钮
                     locationButton
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 100) // 避开 TabBar
+                .padding(.bottom, 16) // 在 TabBar 上方留出一点空间
             }
 
             // 定位权限被拒绝时的提示卡片
@@ -63,9 +86,63 @@ struct MapTabView: View {
         .onAppear {
             handleOnAppear()
         }
+        // 监听闭环状态，闭环后根据验证结果显示横幅
+        .onReceive(locationManager.$isPathClosed) { isClosed in
+            if isClosed {
+                // 闭环后延迟一点点，等待验证结果
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation {
+                        showValidationBanner = true
+                    }
+                    // 3 秒后自动隐藏
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        withAnimation {
+                            showValidationBanner = false
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Subviews
+
+    /// 圈地按钮
+    private var trackingButton: some View {
+        Button(action: {
+            toggleTracking()
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: locationManager.isTracking ? "stop.circle.fill" : "record.circle")
+                    .font(.system(size: 18, weight: .medium))
+
+                if locationManager.isTracking {
+                    Text("停止圈地")
+                        .font(.system(size: 14, weight: .medium))
+
+                    // 显示已记录的点数
+                    Text("(\(locationManager.pathCoordinates.count))")
+                        .font(.system(size: 12))
+                        .foregroundColor(ApocalypseTheme.textSecondary)
+                } else {
+                    Text("开始圈地")
+                        .font(.system(size: 14, weight: .medium))
+                }
+            }
+            .foregroundColor(locationManager.isTracking ? .white : ApocalypseTheme.primary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                locationManager.isTracking
+                    ? ApocalypseTheme.danger
+                    : ApocalypseTheme.cardBackground.opacity(0.95)
+            )
+            .cornerRadius(22)
+            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+        }
+        .disabled(!locationManager.isAuthorized)
+        .opacity(locationManager.isAuthorized ? 1.0 : 0.5)
+    }
 
     /// 定位按钮
     private var locationButton: some View {
@@ -138,6 +215,61 @@ struct MapTabView: View {
         .cornerRadius(12)
     }
 
+    /// 速度警告横幅
+    private func speedWarningBanner(warning: String) -> some View {
+        HStack(spacing: 12) {
+            // 图标
+            Image(systemName: locationManager.isTracking ? "exclamationmark.triangle.fill" : "xmark.circle.fill")
+                .font(.system(size: 20))
+                .foregroundColor(.white)
+
+            // 警告文字
+            Text(warning)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.white)
+                .lineLimit(2)
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            // 根据是否还在追踪选择颜色
+            locationManager.isTracking
+                ? Color.orange // 警告但继续追踪：橙色
+                : Color.red    // 已停止追踪：红色
+        )
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+        .padding(.horizontal, 16)
+    }
+
+    /// 验证结果横幅（根据验证结果显示成功或失败）
+    private var validationResultBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: locationManager.territoryValidationPassed
+                  ? "checkmark.circle.fill"
+                  : "xmark.circle.fill")
+                .font(.body)
+
+            if locationManager.territoryValidationPassed {
+                Text("圈地成功！领地面积: \(String(format: "%.0f", locationManager.calculatedArea))m²")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            } else {
+                Text(locationManager.territoryValidationError ?? "验证失败")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .background(locationManager.territoryValidationPassed ? Color.green : Color.red)
+        .padding(.top, 50)
+    }
+
     // MARK: - Actions
 
     /// 页面出现时的处理
@@ -179,6 +311,19 @@ struct MapTabView: View {
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
+        }
+    }
+
+    /// 切换圈地状态
+    private func toggleTracking() {
+        if locationManager.isTracking {
+            // 停止圈地
+            locationManager.stopPathTracking()
+            print("🛑 用户停止圈地")
+        } else {
+            // 开始圈地
+            locationManager.startPathTracking()
+            print("🏃 用户开始圈地")
         }
     }
 }
