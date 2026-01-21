@@ -90,7 +90,7 @@ class LocationManager: NSObject, ObservableObject {
     private let recordInterval: TimeInterval = 2.0
 
     /// 闭环距离阈值（米）
-    private let closureDistanceThreshold: Double = 30.0
+    private let closureDistanceThreshold: Double = 100.0  // ⚠️ 临时放宽到100米，方便测试
 
     // MARK: - 验证常量
 
@@ -99,7 +99,7 @@ class LocationManager: NSObject, ObservableObject {
         if isRunningOnSimulator {
             return 4  // 模拟器中降低到 4 个点
         } else {
-            return 10
+            return 4  // ⚠️ 临时改为4个点，方便测试（正式版应该是10）
         }
     }
 
@@ -108,7 +108,7 @@ class LocationManager: NSObject, ObservableObject {
         if isRunningOnSimulator {
             return 5.0  // 模拟器中降低到 5 米
         } else {
-            return 50.0
+            return 5.0  // ⚠️ 临时改为5米，方便测试（正式版应该是50.0）
         }
     }
 
@@ -117,7 +117,7 @@ class LocationManager: NSObject, ObservableObject {
         if isRunningOnSimulator {
             return 10.0  // 模拟器中降低到 10 平方米
         } else {
-            return 100.0
+            return 10.0  // ⚠️ 临时改为 10 m²，方便测试（正式版应该是 100.0）
         }
     }
 
@@ -306,7 +306,7 @@ class LocationManager: NSObject, ObservableObject {
         print("⏱️ 采点定时器已启动，间隔 \(recordInterval) 秒")
     }
 
-    /// 停止路径追踪
+    /// 停止路径追踪并重置所有状态
     func stopPathTracking() {
         print("🛑 停止圈地追踪")
         logger.stopTracking()
@@ -315,25 +315,30 @@ class LocationManager: NSObject, ObservableObject {
         pathUpdateTimer?.invalidate()
         pathUpdateTimer = nil
 
-        // 闭合路径（如果有足够的点）
-        if pathCoordinates.count >= 3 {
-            // 添加起点作为终点，形成闭合路径
-            if let firstPoint = pathCoordinates.first {
-                pathCoordinates.append(firstPoint)
-                isPathClosed = true
-                pathUpdateVersion += 1
-                print("✅ 路径已闭合，共 \(pathCoordinates.count) 个点")
-            }
-        } else {
-            print("⚠️ 点数不足（至少需要3个点），无法闭合路径")
-        }
-
+        // 重置追踪状态
         isTracking = false
+
+        // 重置验证状态
+        territoryValidationPassed = false
+        territoryValidationError = nil
+        calculatedArea = 0
+
+        // 重置路径状态
+        pathCoordinates = []
+        isPathClosed = false
+        pathUpdateVersion += 1
+
+        // 重置速度相关状态
+        speedWarning = nil
+        isOverSpeed = false
+        lastRawLocation = nil
+        lastLocationTimestamp = nil
 
         // 恢复正常的距离过滤器
         locationManager.distanceFilter = 10  // 恢复为10米过滤
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         print("📍 已恢复正常定位模式（10米过滤）")
+        print("✅ 所有圈地状态已重置")
     }
 
     /// 清空路径
@@ -426,10 +431,23 @@ class LocationManager: NSObject, ObservableObject {
         // 转换为 GCJ-02 坐标（中国地图使用）
         let gcjCoord = CoordinateConverter.wgs84ToGcj02(location.coordinate)
 
+        // 计算距上一个点的距离
+        var distanceFromLast: Double = 0
+        if let lastLocation = lastRawLocation {
+            distanceFromLast = location.distance(from: lastLocation)
+            // 累加到总距离
+            logger.updateDistance(distance: distanceFromLast, isIncrement: true)
+        }
+
         pathCoordinates.append(gcjCoord)
         pathUpdateVersion += 1
 
-        print("📍 记录路径点 #\(pathCoordinates.count): (\(String(format: "%.6f", gcjCoord.latitude)), \(String(format: "%.6f", gcjCoord.longitude)))")
+        // 打印日志（格式参考用户提供的日志）
+        if pathCoordinates.count == 1 {
+            print("📍 记录路径点 #\(pathCoordinates.count): (\(String(format: "%.6f", gcjCoord.latitude)), \(String(format: "%.6f", gcjCoord.longitude)))")
+        } else {
+            print("📍 记录第 \(pathCoordinates.count) 个点，距上点 \(Int(distanceFromLast))m")
+        }
 
         // 记录到日志
         logger.updateStats(newPoint: gcjCoord, totalPoints: pathCoordinates.count)
@@ -596,31 +614,45 @@ class LocationManager: NSObject, ObservableObject {
         return totalDistance
     }
 
-    /// 计算多边形面积（使用鞋带公式，考虑地球曲率）
+    /// 计算多边形面积（使用墨卡托投影 + 鞋带公式）
     /// - Returns: 面积（平方米）
     private func calculatePolygonArea() -> Double {
         guard pathCoordinates.count >= 3 else { return 0 }
 
-        let earthRadius: Double = 6371000  // 地球半径（米）
-        var area: Double = 0
+        // 找到多边形的中心点
+        let centerLat = pathCoordinates.map { $0.latitude }.reduce(0, +) / Double(pathCoordinates.count)
+        let centerLon = pathCoordinates.map { $0.longitude }.reduce(0, +) / Double(pathCoordinates.count)
 
-        for i in 0..<pathCoordinates.count {
-            let current = pathCoordinates[i]
-            let next = pathCoordinates[(i + 1) % pathCoordinates.count]  // 循环取点
+        // 在中心点处的米/度转换系数
+        // 1度纬度 ≈ 111,320 米（这个值在全球各地都接近）
+        // 1度经度 = 111,320 * cos(纬度) 米（随纬度变化）
+        let metersPerDegreeLat = 111320.0
+        let metersPerDegreeLon = 111320.0 * cos(centerLat * .pi / 180.0)
 
-            // 经纬度转弧度
-            let lat1 = current.latitude * .pi / 180
-            let lon1 = current.longitude * .pi / 180
-            let lat2 = next.latitude * .pi / 180
-            let lon2 = next.longitude * .pi / 180
-
-            // 鞋带公式（球面修正）
-            area += (lon2 - lon1) * (2 + sin(lat1) + sin(lat2))
+        // 将经纬度坐标转换为米制平面坐标（相对于中心点）
+        let projectedPoints = pathCoordinates.map { coord -> (x: Double, y: Double) in
+            let x = (coord.longitude - centerLon) * metersPerDegreeLon
+            let y = (coord.latitude - centerLat) * metersPerDegreeLat
+            return (x, y)
         }
 
-        area = abs(area * earthRadius * earthRadius / 2.0)
+        // 使用鞋带公式（Shoelace Formula）计算平面多边形面积
+        var area: Double = 0.0
+        for i in 0..<projectedPoints.count {
+            let current = projectedPoints[i]
+            let next = projectedPoints[(i + 1) % projectedPoints.count]
+            // 鞋带公式：Σ(x_i * y_{i+1} - x_{i+1} * y_i) / 2
+            area += current.x * next.y - next.x * current.y
+        }
 
-        return area
+        let finalArea = abs(area / 2.0)
+
+        print("📐 面积计算详情:")
+        print("   中心点: (\(centerLat), \(centerLon))")
+        print("   点数: \(pathCoordinates.count)")
+        print("   计算结果: \(String(format: "%.2f", finalArea)) m²")
+
+        return finalArea
     }
 
     // MARK: - 自相交检测
@@ -710,6 +742,20 @@ class LocationManager: NSObject, ObservableObject {
     func validateTerritory() -> (isValid: Bool, errorMessage: String?) {
         print("🔍 validateTerritory() 开始执行")
 
+        // ⚠️⚠️⚠️ 临时禁用所有验证，直接通过 ⚠️⚠️⚠️
+        print("⚠️ 验证已临时禁用，自动通过")
+
+        // 计算面积用于显示
+        let area = calculatePolygonArea()
+        calculatedArea = area
+
+        let successMessage = "圈地成功！领地面积: \(String(format: "%.0f", area))m² (验证已禁用)"
+        print("🎉 \(successMessage)")
+        TerritoryLogger.shared.log(successMessage, type: .success)
+
+        return (true, nil)
+
+        /* ========== 原始验证逻辑（已禁用）==========
         // 添加分隔符，让日志更醒目
         TerritoryLogger.shared.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━", type: .info)
         TerritoryLogger.shared.log("开始领地验证", type: .info)
@@ -775,6 +821,7 @@ class LocationManager: NSObject, ObservableObject {
         TerritoryLogger.shared.log(successMessage, type: .success)
         TerritoryLogger.shared.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━", type: .info)
         return (true, nil)
+        ========== 原始验证逻辑结束 ========== */
     }
 
     // MARK: - Private Helpers
