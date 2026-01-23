@@ -55,7 +55,7 @@ struct earthlordApp: App {
                 }
                 #endif
             }
-            .onChange(of: authManager.isAuthenticated) { newValue in
+            .onChange(of: authManager.isAuthenticated) { _, newValue in
                 print("🔐 认证状态变化: \(newValue)")
             }
             .task {
@@ -73,7 +73,7 @@ struct earthlordApp: App {
     /// 设置认证状态监听器
     private func setupAuthStateListener() {
         Task {
-            for await state in await supabaseClient.auth.authStateChanges {
+            for await state in supabaseClient.auth.authStateChanges {
                 await MainActor.run {
                     switch state.event {
                     case .signedIn:
@@ -104,8 +104,10 @@ struct earthlordApp: App {
                     case .initialSession:
                         print("📋 初始会话加载")
 
-                    @unknown default:
-                        print("❓ 未知认证事件: \(state.event)")
+                    case .userDeleted:
+                        print("🗑️ 用户已删除")
+                        authManager.isAuthenticated = false
+                        authManager.currentUser = nil
                     }
                 }
             }

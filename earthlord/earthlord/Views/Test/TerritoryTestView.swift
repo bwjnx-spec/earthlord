@@ -150,7 +150,7 @@ struct TerritoryTestView: View {
                 }
             }
             .listStyle(.plain)
-            .onChange(of: logger.logs.count) { _ in
+            .onChange(of: logger.logs.count) { _, _ in
                 if autoScroll, let firstLog = logger.logs.first {
                     withAnimation {
                         proxy.scrollTo(firstLog.id, anchor: .top)

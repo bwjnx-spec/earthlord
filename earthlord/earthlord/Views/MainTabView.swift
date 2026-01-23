@@ -20,10 +20,10 @@ struct MainTabView: View {
                 }
                 .tag(1)
 
-            POIListView()
+            ResourcesTabView()
                 .tabItem {
-                    Image(systemName: "scope")
-                    Text("探索")
+                    Image(systemName: "shippingbox.fill")
+                    Text("资源")
                 }
                 .tag(2)
 

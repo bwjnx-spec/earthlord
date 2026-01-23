@@ -30,8 +30,8 @@ struct POIDetailView: View {
     /// POI 状态（可修改）
     @State private var currentStatus: POIStatus
 
-    /// 探索结果
-    @State private var explorationResult: ExplorationResult?
+    /// 探索会话结果（用于显示结果弹窗）
+    @State private var sessionResult: ExplorationSessionResult?
 
     /// 错误消息
     @State private var errorMessage: String?
@@ -214,10 +214,11 @@ struct POIDetailView: View {
                 }
             }
         }
+        .navigationTitle(poi.name)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showExplorationResult) {
-            if let result = explorationResult {
-                ExplorationResultSheet(result: result)
+            if let result = sessionResult {
+                ExplorationResultView(sessionResult: result)
             }
         }
         .alert("搜寻失败", isPresented: $showError) {
@@ -480,25 +481,45 @@ struct POIDetailView: View {
         print("🔍 开始搜寻: \(poi.name)")
 
         Task {
-            do {
-                // 调用 ExplorationManager 搜寻 POI
-                let result = try await explorationManager.searchPOI(poiId: poi.id)
+            // 模拟搜寻延迟
+            try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 秒
 
-                isExploring = false
-                explorationResult = result
-
-                withAnimation {
-                    currentStatus = .looted
-                }
-
-                showExplorationResult = true
-                print("✅ 搜寻完成: \(poi.name)，获得 \(result.itemsCollected.count) 个物品")
-            } catch {
-                isExploring = false
-                errorMessage = error.localizedDescription
-                showError = true
-                print("❌ 搜寻失败: \(error.localizedDescription)")
+            // 生成假的探索会话结果
+            let mockItems = poi.lootItems.prefix(3).compactMap { itemId -> InventoryItem? in
+                guard MockExplorationData.getItemDefinition(by: itemId) != nil else { return nil }
+                return InventoryItem(
+                    id: UUID(),
+                    definitionId: itemId,
+                    quantity: Int.random(in: 1...5),
+                    quality: [.pristine, .good, .worn].randomElement(),
+                    obtainedAt: Date(),
+                    obtainedFrom: poi.name
+                )
             }
+
+            let result = ExplorationSessionResult(
+                id: UUID().uuidString,
+                startTime: Date().addingTimeInterval(-1800), // 30 分钟前
+                endTime: Date(),
+                walkDistance: Double.random(in: 500...2000),
+                totalWalkDistance: Double.random(in: 10000...20000),
+                walkDistanceRank: Int.random(in: 30...100),
+                exploredArea: Double.random(in: 10000...50000),
+                totalExploredArea: Double.random(in: 200000...500000),
+                exploredAreaRank: Int.random(in: 40...120),
+                itemsCollected: mockItems,
+                experienceGained: Int.random(in: 50...200)
+            )
+
+            isExploring = false
+            sessionResult = result
+
+            withAnimation {
+                currentStatus = .looted
+            }
+
+            showExplorationResult = true
+            print("✅ 搜寻完成: \(poi.name)，获得 \(result.itemsCollected.count) 个物品")
         }
     }
 
@@ -653,147 +674,6 @@ struct FlowLayout: Layout {
         totalHeight = currentY + lineHeight
 
         return (CGSize(width: totalWidth, height: totalHeight), positions, sizes)
-    }
-}
-
-// MARK: - 探索结果弹窗
-
-/// 探索结果展示弹窗
-struct ExplorationResultSheet: View {
-    let result: ExplorationResult
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                ApocalypseTheme.background
-                    .ignoresSafeArea()
-
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // 成功图标
-                        ZStack {
-                            Circle()
-                                .fill(ApocalypseTheme.success.opacity(0.15))
-                                .frame(width: 100, height: 100)
-
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 60))
-                                .foregroundColor(ApocalypseTheme.success)
-                        }
-                        .padding(.top, 20)
-
-                        // 标题
-                        VStack(spacing: 8) {
-                            Text("搜寻完成!")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(ApocalypseTheme.textPrimary)
-
-                            Text(result.poiName)
-                                .font(.system(size: 16))
-                                .foregroundColor(ApocalypseTheme.textSecondary)
-                        }
-
-                        // 获得物资列表
-                        if result.itemsCollected.isEmpty {
-                            VStack(spacing: 12) {
-                                Image(systemName: "tray.fill")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(ApocalypseTheme.textMuted)
-
-                                Text("没有发现任何物资")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(ApocalypseTheme.textSecondary)
-                            }
-                            .padding(.vertical, 40)
-                        } else {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("获得物资")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(ApocalypseTheme.textSecondary)
-
-                                ForEach(result.itemsCollected) { item in
-                                    if let definition = MockExplorationData.getItemDefinition(by: item.definitionId) {
-                                        HStack {
-                                            // 稀有度颜色指示
-                                            Circle()
-                                                .fill(rarityColor(definition.rarity))
-                                                .frame(width: 8, height: 8)
-
-                                            Text(definition.name)
-                                                .font(.system(size: 16))
-                                                .foregroundColor(ApocalypseTheme.textPrimary)
-
-                                            Spacer()
-
-                                            Text("x\(item.quantity)")
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundColor(ApocalypseTheme.success)
-                                        }
-                                        .padding(.vertical, 8)
-                                    }
-                                }
-                            }
-                            .padding(16)
-                            .background(ApocalypseTheme.cardBackground)
-                            .cornerRadius(12)
-                            .padding(.horizontal, 16)
-                        }
-
-                        // 经验值
-                        HStack {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(ApocalypseTheme.warning)
-
-                            Text("获得经验: +\(result.experienceGained)")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(ApocalypseTheme.warning)
-                        }
-
-                        Spacer()
-
-                        // 确认按钮
-                        Button(action: { dismiss() }) {
-                            Text("确认")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(ApocalypseTheme.primary)
-                                .cornerRadius(12)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 20)
-                    }
-                }
-            }
-            .navigationTitle("探索结果")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("关闭") {
-                        dismiss()
-                    }
-                    .foregroundColor(ApocalypseTheme.primary)
-                }
-            }
-        }
-    }
-
-    /// 获取稀有度对应的颜色
-    private func rarityColor(_ rarity: ItemRarity) -> Color {
-        switch rarity {
-        case .common:
-            return .gray
-        case .uncommon:
-            return .green
-        case .rare:
-            return .blue
-        case .epic:
-            return .purple
-        case .legendary:
-            return .orange
-        }
     }
 }
 

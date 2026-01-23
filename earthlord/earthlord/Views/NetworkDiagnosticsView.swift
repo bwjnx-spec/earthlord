@@ -232,7 +232,7 @@ struct NetworkDiagnosticsView: View {
             testResult += "\n\n[2/3] 测试 HTTPS 连接..."
             try? await Task.sleep(nanoseconds: 500_000_000)
 
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (_, response) = try await URLSession.shared.data(from: url)
 
             if let httpResponse = response as? HTTPURLResponse {
                 testResult += "\n✅ HTTPS 连接成功"

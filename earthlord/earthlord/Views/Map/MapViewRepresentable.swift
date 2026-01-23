@@ -169,7 +169,7 @@ struct MapViewRepresentable: UIViewRepresentable {
             print("🗺️ 领地名称: \(territory.name ?? "未命名")")
             print("🗺️ 用户 ID: \(territory.userId)")
 
-            var coordinates = territory.toCoordinates()
+            let coordinates = territory.toCoordinates()
             print("🗺️ 原始坐标数量: \(coordinates.count)")
 
             guard coordinates.count >= 3 else {

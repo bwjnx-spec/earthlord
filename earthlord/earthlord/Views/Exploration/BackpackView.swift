@@ -24,6 +24,9 @@ struct BackpackView: View {
     /// 背包最大容量
     private let maxCapacity = 100
 
+    /// 动画用的容量百分比（用于进度条动画）
+    @State private var animatedCapacityPercentage: Double = 0
+
     // MARK: - 计算属性
 
     /// 当前已使用容量（按物品数量计算）
@@ -92,13 +95,16 @@ struct BackpackView: View {
                 categoryFilterBar
                     .padding(.top, 12)
 
-                // 物品列表
+                // 物品列表（带过渡动画）
                 if filteredItems.isEmpty {
                     emptyState
+                        .transition(.opacity)
                 } else {
                     itemList
+                        .transition(.opacity)
                 }
             }
+            .animation(.easeInOut(duration: 0.2), value: selectedCategory)
         }
         .navigationTitle("背包")
         .navigationBarTitleDisplayMode(.inline)
@@ -129,20 +135,30 @@ struct BackpackView: View {
                 }
             }
 
-            // 进度条
+            // 进度条（带动画）
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     // 背景
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color.gray.opacity(0.2))
 
-                    // 进度
+                    // 进度（使用动画值）
                     RoundedRectangle(cornerRadius: 4)
                         .fill(capacityColor)
-                        .frame(width: geometry.size.width * capacityPercentage)
+                        .frame(width: geometry.size.width * animatedCapacityPercentage)
                 }
             }
             .frame(height: 8)
+            .onAppear {
+                withAnimation(.easeOut(duration: 0.6)) {
+                    animatedCapacityPercentage = capacityPercentage
+                }
+            }
+            .onChange(of: capacityPercentage) { _, newValue in
+                withAnimation(.easeOut(duration: 0.3)) {
+                    animatedCapacityPercentage = newValue
+                }
+            }
         }
         .padding(16)
         .background(ApocalypseTheme.cardBackground)
@@ -202,7 +218,9 @@ struct BackpackView: View {
         let isSelected = selectedCategory == category
 
         return Button(action: {
-            selectedCategory = category
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedCategory = category
+            }
         }) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
@@ -345,16 +363,44 @@ struct BackpackView: View {
         VStack(spacing: 16) {
             Spacer()
 
-            Image(systemName: "tray.fill")
-                .font(.system(size: 60))
-                .foregroundColor(ApocalypseTheme.textMuted)
+            // 根据不同情况显示不同的空状态
+            if explorationManager.inventoryItems.isEmpty {
+                // 背包完全为空
+                Image(systemName: "backpack")
+                    .font(.system(size: 60))
+                    .foregroundColor(ApocalypseTheme.textMuted)
 
-            Text("背包空空如也")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundColor(ApocalypseTheme.textSecondary)
+                Text("背包空空如也")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(ApocalypseTheme.textSecondary)
 
-            if !searchText.isEmpty || selectedCategory != nil {
-                Text("试试调整筛选条件")
+                Text("去探索收集物资吧")
+                    .font(.system(size: 14))
+                    .foregroundColor(ApocalypseTheme.textMuted)
+            } else if !searchText.isEmpty {
+                // 搜索没有结果
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 60))
+                    .foregroundColor(ApocalypseTheme.textMuted)
+
+                Text("没有找到相关物品")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(ApocalypseTheme.textSecondary)
+
+                Text("试试其他关键词")
+                    .font(.system(size: 14))
+                    .foregroundColor(ApocalypseTheme.textMuted)
+            } else {
+                // 筛选没有结果
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 60))
+                    .foregroundColor(ApocalypseTheme.textMuted)
+
+                Text("该分类下没有物品")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(ApocalypseTheme.textSecondary)
+
+                Text("试试其他分类")
                     .font(.system(size: 14))
                     .foregroundColor(ApocalypseTheme.textMuted)
             }

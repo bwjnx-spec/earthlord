@@ -111,7 +111,7 @@ struct AuthView: View {
         .sheet(isPresented: $showResetSheet) {
             resetPasswordSheet
         }
-        .onChange(of: authManager.otpVerified) { verified in
+        .onChange(of: authManager.otpVerified) { _, verified in
             // 注册流程：OTP 验证后自动进入密码设置步骤
             if verified && selectedTab == .register {
                 registerStep = .password

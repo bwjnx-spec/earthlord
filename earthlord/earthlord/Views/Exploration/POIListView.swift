@@ -25,6 +25,12 @@ struct POIListView: View {
     /// 导航到 POI 详情
     @State private var selectedPOI: POI?
 
+    /// 搜索按钮按下状态（用于缩放动画）
+    @State private var isSearchButtonPressed = false
+
+    /// POI 列表是否已显示（用于淡入动画）
+    @State private var poisAppeared: Set<UUID> = []
+
     // MARK: - 计算属性
 
     /// 当前 GPS 坐标
@@ -156,6 +162,13 @@ struct POIListView: View {
             )
             .cornerRadius(12)
         }
+        .scaleEffect(isSearchButtonPressed ? 0.96 : 1.0)
+        .animation(.easeInOut(duration: 0.1), value: isSearchButtonPressed)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in isSearchButtonPressed = true }
+                .onEnded { _ in isSearchButtonPressed = false }
+        )
         .disabled(isSearching)
     }
 
@@ -251,6 +264,15 @@ struct POIListView: View {
                 } else {
                     ForEach(filteredPOIs) { poi in
                         POICard(poi: poi)
+                            .opacity(poisAppeared.contains(poi.id) ? 1 : 0)
+                            .offset(y: poisAppeared.contains(poi.id) ? 0 : 20)
+                            .onAppear {
+                                // 淡入动画
+                                let index = filteredPOIs.firstIndex(where: { $0.id == poi.id }) ?? 0
+                                withAnimation(.easeOut(duration: 0.3).delay(Double(index) * 0.1)) {
+                                    _ = poisAppeared.insert(poi.id)
+                                }
+                            }
                             .onTapGesture {
                                 handlePOITap(poi)
                             }
@@ -265,17 +287,29 @@ struct POIListView: View {
     /// 空状态视图
     private var emptyStateView: some View {
         VStack(spacing: 16) {
-            Image(systemName: "mappin.slash")
-                .font(.system(size: 48))
-                .foregroundColor(ApocalypseTheme.textMuted)
+            if explorationManager.nearbyPOIs.isEmpty {
+                // 没有任何POI
+                Image(systemName: "map")
+                    .font(.system(size: 60))
+                    .foregroundColor(ApocalypseTheme.textMuted)
 
-            Text("没有找到相关地点")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(ApocalypseTheme.textSecondary)
+                Text("附近暂无兴趣点")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(ApocalypseTheme.textSecondary)
 
-            Text("尝试搜索或更换筛选条件")
-                .font(.system(size: 14))
-                .foregroundColor(ApocalypseTheme.textMuted)
+                Text("点击搜索按钮发现周围的废墟")
+                    .font(.system(size: 14))
+                    .foregroundColor(ApocalypseTheme.textMuted)
+            } else {
+                // 筛选后没有结果
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 60))
+                    .foregroundColor(ApocalypseTheme.textMuted)
+
+                Text("没有找到该类型的地点")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(ApocalypseTheme.textSecondary)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
@@ -286,6 +320,8 @@ struct POIListView: View {
     /// 执行搜索操作
     private func performSearch() {
         isSearching = true
+        // 重置淡入状态，让列表重新动画
+        poisAppeared.removeAll()
 
         Task {
             await explorationManager.checkNearbyPOIs()

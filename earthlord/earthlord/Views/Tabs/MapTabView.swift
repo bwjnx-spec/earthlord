@@ -64,6 +64,14 @@ struct MapTabView: View {
     /// 碰撞警告级别
     @State private var collisionWarningLevel: WarningLevel = .safe
 
+    // MARK: - 探索功能状态
+
+    /// 是否正在探索中
+    @State private var isExploring = false
+
+    /// 是否显示探索结果
+    @State private var showExplorationResult = false
+
     /// 当前用户 ID（方便访问）
     private var currentUserId: String? {
         authManager.currentUser?.id
@@ -86,6 +94,17 @@ struct MapTabView: View {
                 currentUserId: authManager.currentUser?.id
             )
             .ignoresSafeArea(edges: .top) // 只忽略顶部安全区域，保留底部 TabBar
+
+            // 左上角坐标显示
+            VStack {
+                HStack {
+                    coordinateOverlay
+                    Spacer()
+                }
+                Spacer()
+            }
+            .padding(.top, 60)
+            .padding(.horizontal, 16)
 
             // 覆盖层 UI
             VStack {
@@ -148,9 +167,17 @@ struct MapTabView: View {
 
                     // 定位按钮
                     locationButton
+
+                    Spacer()
+
+                    // 探索按钮
+                    exploreButton
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16) // 在 TabBar 上方留出一点空间
+            }
+            .sheet(isPresented: $showExplorationResult) {
+                ExplorationResultView(sessionResult: MockExplorationData.mockExplorationSessionResult)
             }
 
             // 定位权限被拒绝时的提示卡片
@@ -175,7 +202,7 @@ struct MapTabView: View {
                 await loadTerritories()
             }
         }
-        .onChange(of: authManager.isAuthenticated) { newValue in
+        .onChange(of: authManager.isAuthenticated) { _, newValue in
             print("\n🔑 认证状态变化: \(newValue)")
             if newValue {
                 // 用户刚登录，重新加载领地
@@ -204,6 +231,45 @@ struct MapTabView: View {
     }
 
     // MARK: - Subviews
+
+    /// 左上角坐标显示
+    private var coordinateOverlay: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            // 标题行
+            HStack(spacing: 6) {
+                Image(systemName: "location.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(locationManager.isAuthorized ? .green : .red)
+
+                Text("GPS")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+
+            // 坐标数据
+            if let location = userLocation {
+                Text(String(format: "%.6f", location.latitude))
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white)
+
+                Text(String(format: "%.6f", location.longitude))
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white)
+            } else {
+                Text("---.------")
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.5))
+
+                Text("---.------")
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.5))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.black.opacity(0.6))
+        .cornerRadius(10)
+    }
 
     /// 圈地按钮
     private var trackingButton: some View {
@@ -256,6 +322,42 @@ struct MapTabView: View {
                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
         }
         .disabled(!locationManager.isAuthorized)
+    }
+
+    /// 探索按钮
+    private var exploreButton: some View {
+        Button(action: {
+            startExploration()
+        }) {
+            HStack(spacing: 8) {
+                if isExploring {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(0.8)
+
+                    Text("探索中...")
+                        .font(.system(size: 14, weight: .medium))
+                } else {
+                    Image(systemName: "binoculars.fill")
+                        .font(.system(size: 18, weight: .medium))
+
+                    Text("探索")
+                        .font(.system(size: 14, weight: .medium))
+                }
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                isExploring
+                    ? ApocalypseTheme.textMuted
+                    : ApocalypseTheme.primary
+            )
+            .cornerRadius(22)
+            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+        }
+        .disabled(isExploring || !locationManager.isAuthorized)
+        .opacity(locationManager.isAuthorized ? 1.0 : 0.5)
     }
 
     /// 权限被拒绝提示卡片
@@ -491,6 +593,19 @@ struct MapTabView: View {
     private func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
+        }
+    }
+
+    /// 开始探索
+    private func startExploration() {
+        guard !isExploring else { return }
+
+        isExploring = true
+
+        // 模拟1.5秒的搜索过程
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            isExploring = false
+            showExplorationResult = true
         }
     }
 

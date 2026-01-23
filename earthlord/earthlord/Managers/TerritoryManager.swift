@@ -33,8 +33,13 @@ class TerritoryManager: ObservableObject {
 
     // MARK: - Initialization
 
-    init(supabase: SupabaseClient = supabaseClient) {
+    nonisolated init(supabase: SupabaseClient) {
         self.supabase = supabase
+    }
+
+    /// 便捷初始化器（使用全局 supabaseClient）
+    convenience init() {
+        self.init(supabase: supabaseClient)
     }
 
     // MARK: - 坐标转换方法
