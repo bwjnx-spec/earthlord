@@ -15,6 +15,8 @@ struct TestMenuView: View {
         case territory = "领地测试"
         case supabase = "Supabase 测试"
         case network = "网络诊断"
+        case backpack = "背包测试"
+        case poi = "POI 列表"
 
         var id: String { rawValue }
 
@@ -23,6 +25,8 @@ struct TestMenuView: View {
             case .territory: return "map.circle.fill"
             case .supabase: return "server.rack"
             case .network: return "network"
+            case .backpack: return "backpack.fill"
+            case .poi: return "scope"
             }
         }
 
@@ -31,6 +35,8 @@ struct TestMenuView: View {
             case .territory: return "测试圈地功能、闭环检测、速度检测"
             case .supabase: return "测试 Supabase 数据库连接和操作"
             case .network: return "诊断网络连接状态"
+            case .backpack: return "测试背包管理、物品筛选和操作"
+            case .poi: return "测试 POI 地点列表和详情"
             }
         }
     }
@@ -96,6 +102,10 @@ struct TestMenuView: View {
             SupabaseTestView()
         case .network:
             NetworkDiagnosticsView()
+        case .backpack:
+            BackpackView()
+        case .poi:
+            POIListView()
         }
     }
 }

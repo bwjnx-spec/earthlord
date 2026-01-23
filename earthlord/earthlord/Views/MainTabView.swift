@@ -20,19 +20,26 @@ struct MainTabView: View {
                 }
                 .tag(1)
 
+            POIListView()
+                .tabItem {
+                    Image(systemName: "scope")
+                    Text("探索")
+                }
+                .tag(2)
+
             ProfileTabView()
                 .tabItem {
                     Image(systemName: "person.fill")
                     Text("个人")
                 }
-                .tag(2)
+                .tag(3)
 
             TestMenuView()
                 .tabItem {
                     Image(systemName: "wrench.and.screwdriver.fill")
                     Text("测试")
                 }
-                .tag(3)
+                .tag(4)
         }
         .tint(ApocalypseTheme.primary)
         .refreshOnLanguageChange()

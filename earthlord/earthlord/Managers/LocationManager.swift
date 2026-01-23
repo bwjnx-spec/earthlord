@@ -619,15 +619,31 @@ class LocationManager: NSObject, ObservableObject {
     private func calculatePolygonArea() -> Double {
         guard pathCoordinates.count >= 3 else { return 0 }
 
+        logger.log("━━━━━━ 面积计算调试开始 ━━━━━━", type: .debug)
+
         // 找到多边形的中心点
         let centerLat = pathCoordinates.map { $0.latitude }.reduce(0, +) / Double(pathCoordinates.count)
         let centerLon = pathCoordinates.map { $0.longitude }.reduce(0, +) / Double(pathCoordinates.count)
+
+        logger.log("步骤1: 点数=\(pathCoordinates.count), 中心点=(\(String(format: "%.6f", centerLat)), \(String(format: "%.6f", centerLon)))", type: .debug)
+
+        // 打印原始坐标（前3个和后3个点）
+        for i in 0..<min(3, pathCoordinates.count) {
+            let coord = pathCoordinates[i]
+            logger.log("原始坐标[\(i)]: lat=\(String(format: "%.6f", coord.latitude)), lon=\(String(format: "%.6f", coord.longitude))", type: .debug)
+        }
+        if pathCoordinates.count > 3 {
+            let lastCoord = pathCoordinates[pathCoordinates.count - 1]
+            logger.log("原始坐标[\(pathCoordinates.count - 1)]: lat=\(String(format: "%.6f", lastCoord.latitude)), lon=\(String(format: "%.6f", lastCoord.longitude))", type: .debug)
+        }
 
         // 在中心点处的米/度转换系数
         // 1度纬度 ≈ 111,320 米（这个值在全球各地都接近）
         // 1度经度 = 111,320 * cos(纬度) 米（随纬度变化）
         let metersPerDegreeLat = 111320.0
         let metersPerDegreeLon = 111320.0 * cos(centerLat * .pi / 180.0)
+
+        logger.log("步骤2: 转换系数 - 纬度: 1°=\(String(format: "%.2f", metersPerDegreeLat))m, 经度: 1°=\(String(format: "%.2f", metersPerDegreeLon))m", type: .debug)
 
         // 将经纬度坐标转换为米制平面坐标（相对于中心点）
         let projectedPoints = pathCoordinates.map { coord -> (x: Double, y: Double) in
@@ -636,21 +652,52 @@ class LocationManager: NSObject, ObservableObject {
             return (x, y)
         }
 
+        // 打印投影坐标（前3个）
+        for i in 0..<min(3, projectedPoints.count) {
+            let p = projectedPoints[i]
+            logger.log("投影坐标[\(i)]: x=\(String(format: "%.2f", p.x))m, y=\(String(format: "%.2f", p.y))m", type: .debug)
+        }
+
+        // 计算投影坐标的范围，用于估算多边形大小
+        let xCoords = projectedPoints.map { $0.x }
+        let yCoords = projectedPoints.map { $0.y }
+        let minX = xCoords.min() ?? 0
+        let maxX = xCoords.max() ?? 0
+        let minY = yCoords.min() ?? 0
+        let maxY = yCoords.max() ?? 0
+        let width = maxX - minX
+        let height = maxY - minY
+        let boundingBoxArea = width * height
+
+        logger.log("步骤3: X范围=[\(String(format: "%.2f", minX)), \(String(format: "%.2f", maxX))], 宽度=\(String(format: "%.2f", width))m", type: .debug)
+        logger.log("步骤3: Y范围=[\(String(format: "%.2f", minY)), \(String(format: "%.2f", maxY))], 高度=\(String(format: "%.2f", height))m", type: .debug)
+        logger.log("步骤3: 矩形包络面积估算=\(String(format: "%.2f", boundingBoxArea))m²", type: .info)
+
         // 使用鞋带公式（Shoelace Formula）计算平面多边形面积
         var area: Double = 0.0
+
         for i in 0..<projectedPoints.count {
             let current = projectedPoints[i]
             let next = projectedPoints[(i + 1) % projectedPoints.count]
-            // 鞋带公式：Σ(x_i * y_{i+1} - x_{i+1} * y_i) / 2
-            area += current.x * next.y - next.x * current.y
+            let term = current.x * next.y - next.x * current.y
+            area += term
+
+            // 只记录前3项
+            if i < 3 {
+                logger.log("鞋带项[\(i)→\((i + 1) % projectedPoints.count)]: \(String(format: "%.2f", current.x))*\(String(format: "%.2f", next.y)) - \(String(format: "%.2f", next.x))*\(String(format: "%.2f", current.y)) = \(String(format: "%.2f", term))", type: .debug)
+            }
         }
+
+        logger.log("步骤4: 鞋带公式累加和=\(String(format: "%.2f", area)), 除以2=\(String(format: "%.2f", area / 2.0))", type: .debug)
 
         let finalArea = abs(area / 2.0)
 
-        print("📐 面积计算详情:")
-        print("   中心点: (\(centerLat), \(centerLon))")
-        print("   点数: \(pathCoordinates.count)")
-        print("   计算结果: \(String(format: "%.2f", finalArea)) m²")
+        logger.log("━━━━━━ 面积计算结果: \(String(format: "%.2f", finalArea))m² (包络估算: \(String(format: "%.2f", boundingBoxArea))m²) ━━━━━━", type: .info)
+
+        // 如果计算面积远小于包络面积，输出警告
+        if boundingBoxArea > 0 && finalArea < boundingBoxArea * 0.1 {
+            logger.log("⚠️ 警告: 计算面积(\(String(format: "%.2f", finalArea))m²)远小于包络面积(\(String(format: "%.2f", boundingBoxArea))m²)的10%，可能存在问题！", type: .warning)
+        }
 
         return finalArea
     }

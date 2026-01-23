@@ -104,7 +104,13 @@ class TerritoryManager: ObservableObject {
     func uploadTerritory(coordinates: [CLLocationCoordinate2D], area: Double, startTime: Date) async throws {
         print("📤 开始上传领地...")
         print("   坐标点数: \(coordinates.count)")
-        print("   面积: \(area) 平方米")
+        print("   传入面积: \(area) 平方米")
+
+        // ⚠️ 重要修复：根据实际坐标重新计算面积
+        // 因为闭环检测时计算的面积可能只基于部分点
+        let recalculatedArea = calculatePolygonArea(coordinates: coordinates)
+        print("   重新计算面积: \(recalculatedArea) 平方米")
+        logger.log("面积重算: 传入=\(Int(area))m², 实际=\(Int(recalculatedArea))m² (基于\(coordinates.count)个点)", type: .info)
 
         isLoading = true
         errorMessage = nil
@@ -141,7 +147,7 @@ class TerritoryManager: ObservableObject {
                 "bbox_max_lat": .double(bbox.maxLat),
                 "bbox_min_lon": .double(bbox.minLon),
                 "bbox_max_lon": .double(bbox.maxLon),
-                "area": .double(area),
+                "area": .double(recalculatedArea),
                 "point_count": .integer(coordinates.count),
                 "is_active": .bool(true)
             ]
@@ -156,7 +162,7 @@ class TerritoryManager: ObservableObject {
             print("✅ 领地上传成功!")
 
             // 记录成功日志
-            logger.log("领地上传成功！面积: \(Int(area))m²", type: .success)
+            logger.log("领地上传成功！面积: \(Int(recalculatedArea))m²", type: .success)
 
         } catch {
             errorMessage = "上传失败: \(error.localizedDescription)"
@@ -263,6 +269,58 @@ class TerritoryManager: ObservableObject {
             logger.log("删除领地失败: \(error.localizedDescription)", type: .error)
             return false
         }
+    }
+
+    // MARK: - 面积计算
+
+    /// 计算多边形面积（使用墨卡托投影 + 鞋带公式）
+    /// - Parameter coordinates: 多边形顶点坐标数组
+    /// - Returns: 面积（平方米）
+    private func calculatePolygonArea(coordinates: [CLLocationCoordinate2D]) -> Double {
+        guard coordinates.count >= 3 else { return 0 }
+
+        // 找到多边形的中心点
+        let centerLat = coordinates.map { $0.latitude }.reduce(0, +) / Double(coordinates.count)
+        let centerLon = coordinates.map { $0.longitude }.reduce(0, +) / Double(coordinates.count)
+
+        // 在中心点处的米/度转换系数
+        let metersPerDegreeLat = 111320.0
+        let metersPerDegreeLon = 111320.0 * cos(centerLat * .pi / 180.0)
+
+        // 将经纬度坐标转换为米制平面坐标（相对于中心点）
+        let projectedPoints = coordinates.map { coord -> (x: Double, y: Double) in
+            let x = (coord.longitude - centerLon) * metersPerDegreeLon
+            let y = (coord.latitude - centerLat) * metersPerDegreeLat
+            return (x, y)
+        }
+
+        // 计算投影坐标的范围，用于估算多边形大小
+        let xCoords = projectedPoints.map { $0.x }
+        let yCoords = projectedPoints.map { $0.y }
+        let width = (xCoords.max() ?? 0) - (xCoords.min() ?? 0)
+        let height = (yCoords.max() ?? 0) - (yCoords.min() ?? 0)
+        let boundingBoxArea = width * height
+
+        // 使用鞋带公式（Shoelace Formula）计算平面多边形面积
+        var area: Double = 0.0
+        for i in 0..<projectedPoints.count {
+            let current = projectedPoints[i]
+            let next = projectedPoints[(i + 1) % projectedPoints.count]
+            area += current.x * next.y - next.x * current.y
+        }
+
+        let finalArea = abs(area / 2.0)
+
+        // 输出调试信息
+        logger.log("面积计算: 点数=\(coordinates.count), 宽=\(String(format: "%.1f", width))m, 高=\(String(format: "%.1f", height))m", type: .debug)
+        logger.log("面积计算: 包络=\(String(format: "%.0f", boundingBoxArea))m², 实际=\(String(format: "%.0f", finalArea))m²", type: .debug)
+
+        // 如果计算面积远小于包络面积，输出警告
+        if boundingBoxArea > 100 && finalArea < boundingBoxArea * 0.1 {
+            logger.log("⚠️ 面积异常: 实际(\(String(format: "%.0f", finalArea))m²)远小于包络(\(String(format: "%.0f", boundingBoxArea))m²)", type: .warning)
+        }
+
+        return finalArea
     }
 
     // MARK: - 碰撞检测算法
