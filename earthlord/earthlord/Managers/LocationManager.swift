@@ -83,6 +83,12 @@ class LocationManager: NSObject, ObservableObject {
     /// 当前位置（Timer 采点用）
     var currentLocation: CLLocation?
 
+    /// 上次行走位置（用于日常行走距离计算）
+    private var lastWalkingLocation: CLLocation?
+
+    /// 上次行走时间戳（用于日常行走速度检测）
+    private var lastWalkingTimestamp: Date?
+
     /// 路径采点定时器
     private var pathUpdateTimer: Timer?
 
@@ -918,6 +924,65 @@ class LocationManager: NSObject, ObservableObject {
         }
     }
 
+    /// 追踪日常行走距离（位置更新时调用）
+    /// - Parameter newLocation: 新位置
+    private func trackDailyWalkingDistance(newLocation: CLLocation) {
+        // 精度检查：只统计精度良好的位置
+        guard newLocation.horizontalAccuracy >= 0 && newLocation.horizontalAccuracy <= 50 else {
+            print("📊 [行走统计] 跳过：GPS精度不足 (\(String(format: "%.1f", newLocation.horizontalAccuracy))m)")
+            return
+        }
+
+        // 如果有上一个位置，计算距离和速度
+        if let lastLocation = lastWalkingLocation,
+           let lastTimestamp = lastWalkingTimestamp {
+
+            let distance = newLocation.distance(from: lastLocation)
+            let timeInterval = newLocation.timestamp.timeIntervalSince(lastTimestamp)
+
+            print("📊 [行走统计] 位置变化:")
+            print("   - 距离: \(String(format: "%.2f", distance))m")
+            print("   - 时间间隔: \(String(format: "%.2f", timeInterval))s")
+
+            // 防止时间异常
+            guard timeInterval > 0.1 else {
+                print("📊 [行走统计] 跳过：时间间隔异常")
+                return
+            }
+
+            // 计算速度
+            let speedMetersPerSecond = distance / timeInterval
+            let speedKmPerHour = speedMetersPerSecond * 3.6
+
+            print("   - 速度: \(String(format: "%.2f", speedKmPerHour)) km/h")
+
+            // 速度检查：只统计合理的行走速度（≤ 30 km/h）
+            guard speedKmPerHour <= 30 else {
+                print("📊 [行走统计] 跳过：速度过快 (\(String(format: "%.2f", speedKmPerHour)) km/h > 30 km/h)")
+                // 仍然更新位置，以便下次计算
+                lastWalkingLocation = newLocation
+                lastWalkingTimestamp = newLocation.timestamp
+                return
+            }
+
+            // 距离过滤：忽略太小的移动（GPS 漂移）
+            guard distance >= 3.0 else {
+                print("📊 [行走统计] 跳过：距离太小 (\(String(format: "%.2f", distance))m < 3m，可能是GPS漂移)")
+                return
+            }
+
+            // ✅ 通过所有检查，累加距离
+            print("📊 [行走统计] ✅ 记录行走: +\(String(format: "%.2f", distance))m")
+            updateWalkingDistance(distance: distance)
+        } else {
+            print("📊 [行走统计] 初始化：记录首次位置")
+        }
+
+        // 更新上次位置和时间
+        lastWalkingLocation = newLocation
+        lastWalkingTimestamp = newLocation.timestamp
+    }
+
     // MARK: - Private Helpers
 
     /// 授权状态描述
@@ -1129,6 +1194,9 @@ extension LocationManager: CLLocationManagerDelegate {
             if self.isTracking && accuracy > 50 {
                 self.logger.log("GPS 精度较差: \(String(format: "%.1f", accuracy))m，可能影响圈地准确性", type: .warning)
             }
+
+            // 📊 日常行走距离统计（不仅限于圈地时）
+            self.trackDailyWalkingDistance(newLocation: location)
         }
     }
 

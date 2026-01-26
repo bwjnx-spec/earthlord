@@ -322,17 +322,6 @@ struct ExplorationResultView: View {
                     formatter: { formatDistance($0) + " km" }
                 )
 
-                // 探索面积（带数字跳动动画）
-                AnimatedStatisticRow(
-                    icon: "map",
-                    title: "探索面积",
-                    currentValue: result.exploredArea,
-                    totalValue: result.totalExploredArea,
-                    rank: result.exploredAreaRank,
-                    animationProgress: animationProgress,
-                    formatter: { formatArea($0) + " km²" }
-                )
-
                 // 探索时长
                 HStack(spacing: 12) {
                     // 图标

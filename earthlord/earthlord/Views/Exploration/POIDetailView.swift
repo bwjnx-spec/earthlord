@@ -504,9 +504,6 @@ struct POIDetailView: View {
                 walkDistance: Double.random(in: 500...2000),
                 totalWalkDistance: Double.random(in: 10000...20000),
                 walkDistanceRank: Int.random(in: 30...100),
-                exploredArea: Double.random(in: 10000...50000),
-                totalExploredArea: Double.random(in: 200000...500000),
-                exploredAreaRank: Int.random(in: 40...120),
                 itemsCollected: mockItems,
                 experienceGained: Int.random(in: 50...200)
             )

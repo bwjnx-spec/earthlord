@@ -158,9 +158,6 @@ struct ExplorationSessionResult: Identifiable {
     let walkDistance: Double          // 本次行走距离（米）
     let totalWalkDistance: Double     // 累计行走距离（米）
     let walkDistanceRank: Int         // 行走距离排名
-    let exploredArea: Double          // 本次探索面积（平方米）
-    let totalExploredArea: Double     // 累计探索面积（平方米）
-    let exploredAreaRank: Int         // 探索面积排名
     let itemsCollected: [InventoryItem]  // 收集的物品列表
     let experienceGained: Int         // 获得的经验值
 
@@ -179,11 +176,6 @@ struct ExplorationStats {
     var totalWalkDistance: Double     // 累计行走距离（米）
     var todayWalkDistance: Double     // 今日行走距离（米）
     var walkDistanceRank: Int         // 行走距离排名
-
-    // 探索面积统计
-    var totalExploredArea: Double     // 累计探索面积（平方米）
-    var todayExploredArea: Double     // 今日探索面积（平方米）
-    var exploredAreaRank: Int         // 探索面积排名
 
     // 其他统计
     var totalExplorationTime: TimeInterval  // 累计探索时长（秒）
@@ -630,9 +622,6 @@ struct MockExplorationData {
         walkDistance: 2500,                          // 本次行走 2.5 公里
         totalWalkDistance: 15000,                    // 累计 15 公里
         walkDistanceRank: 42,                        // 行走排名第 42
-        exploredArea: 50000,                         // 本次探索 5 万平方米
-        totalExploredArea: 320000,                   // 累计 32 万平方米
-        exploredAreaRank: 68,                        // 面积排名第 68
         itemsCollected: [
             InventoryItem(
                 id: UUID(),
@@ -679,11 +668,6 @@ struct MockExplorationData {
         totalWalkDistance: 15000,      // 累计 15 公里
         todayWalkDistance: 2500,       // 今日 2.5 公里
         walkDistanceRank: 42,          // 排名第 42
-
-        // 探索面积
-        totalExploredArea: 250000,     // 累计 25 万平方米
-        todayExploredArea: 50000,      // 今日 5 万平方米
-        exploredAreaRank: 38,          // 排名第 38
 
         // 其他统计
         totalExplorationTime: 36000,   // 累计探索 10 小时
@@ -788,7 +772,6 @@ extension MockExplorationData {
         print("背包总重量: \(String(format: "%.1f", calculateTotalWeight(items: mockInventoryItems))) kg")
         print("背包总体积: \(String(format: "%.1f", calculateTotalVolume(items: mockInventoryItems))) L")
         print("累计行走: \(formatDistance(mockExplorationStats.totalWalkDistance))")
-        print("累计探索: \(formatArea(mockExplorationStats.totalExploredArea))")
         print("================================")
     }
 }

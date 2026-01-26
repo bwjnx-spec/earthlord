@@ -75,6 +75,18 @@ struct MapTabView: View {
     /// 是否显示探索结果
     @State private var showExplorationResult = false
 
+    /// 探索速度警告
+    @State private var explorationSpeedWarning: String?
+
+    /// 探索超速计时器
+    @State private var explorationOverspeedTimer: Timer?
+
+    /// 探索开始时间
+    @State private var explorationStartTime: Date?
+
+    /// 上次探索位置（用于速度检测）
+    @State private var lastExplorationLocation: CLLocation?
+
     /// 当前用户 ID（方便访问）
     private var currentUserId: String? {
         authManager.currentUser?.id
@@ -141,6 +153,11 @@ struct MapTabView: View {
                 // Day 19: 碰撞警告横幅（分级颜色）
                 if showCollisionWarning, let warning = collisionWarning {
                     collisionWarningBanner(message: warning, level: collisionWarningLevel)
+                }
+
+                // 探索速度警告横幅
+                if let warning = explorationSpeedWarning {
+                    explorationSpeedWarningBanner(warning: warning)
                 }
 
                 Spacer()
@@ -674,6 +691,35 @@ struct MapTabView: View {
         .animation(.easeInOut(duration: 0.3), value: showCollisionWarning)
     }
 
+    /// 探索速度警告横幅
+    private func explorationSpeedWarningBanner(warning: String) -> some View {
+        VStack {
+            HStack(spacing: 12) {
+                Image(systemName: warning.contains("已停止") ? "xmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(.white)
+
+                Text(warning)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(warning.contains("已停止") ? Color.red : Color.orange)
+            .cornerRadius(12)
+            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+            .padding(.horizontal, 16)
+            .padding(.top, 120)
+
+            Spacer()
+        }
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .animation(.easeInOut(duration: 0.3), value: explorationSpeedWarning)
+    }
+
     // MARK: - Actions
 
     /// 页面出现时的处理
@@ -720,14 +766,152 @@ struct MapTabView: View {
 
     /// 开始探索
     private func startExploration() {
-        guard !isExploring else { return }
+        guard !isExploring else {
+            print("🔍 [探索] 已在探索中，忽略")
+            return
+        }
+
+        guard locationManager.isAuthorized else {
+            print("⚠️ [探索] 未授权定位，无法探索")
+            return
+        }
+
+        guard let currentLocation = locationManager.currentLocation else {
+            print("⚠️ [探索] 无当前位置，无法探索")
+            return
+        }
+
+        print("🔍 [探索] 开始探索")
+        print("   - 起始位置: (\(String(format: "%.6f", currentLocation.coordinate.latitude)), \(String(format: "%.6f", currentLocation.coordinate.longitude)))")
 
         isExploring = true
+        explorationStartTime = Date()
+        lastExplorationLocation = currentLocation
+        explorationSpeedWarning = nil
+
+        // 启动速度检测定时器（每秒检测一次）
+        startExplorationSpeedMonitoring()
 
         // 模拟1.5秒的搜索过程
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            isExploring = false
+            // 如果仍在探索中（未被超速中断），显示结果
+            if self.isExploring {
+                print("🔍 [探索] 探索完成")
+                self.stopExploration(success: true)
+            }
+        }
+    }
+
+    /// 停止探索
+    /// - Parameter success: 是否成功完成
+    private func stopExploration(success: Bool) {
+        print("🔍 [探索] 停止探索 - \(success ? "成功" : "失败")")
+
+        isExploring = false
+        explorationSpeedWarning = nil
+        stopExplorationSpeedMonitoring()
+        lastExplorationLocation = nil
+        explorationStartTime = nil
+
+        if success {
             showExplorationResult = true
+        }
+    }
+
+    /// 启动探索速度监控
+    private func startExplorationSpeedMonitoring() {
+        print("🔍 [探索速度监控] 启动")
+
+        explorationOverspeedTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            checkExplorationSpeed()
+        }
+    }
+
+    /// 停止探索速度监控
+    private func stopExplorationSpeedMonitoring() {
+        print("🔍 [探索速度监控] 停止")
+        explorationOverspeedTimer?.invalidate()
+        explorationOverspeedTimer = nil
+    }
+
+    /// 检测探索速度
+    private func checkExplorationSpeed() {
+        guard isExploring else { return }
+
+        guard let currentLocation = locationManager.currentLocation,
+              let lastLocation = lastExplorationLocation else {
+            print("🔍 [探索速度检测] 等待位置更新...")
+            return
+        }
+
+        // 计算距离和时间
+        let distance = currentLocation.distance(from: lastLocation)
+        let timeInterval = currentLocation.timestamp.timeIntervalSince(lastLocation.timestamp)
+
+        guard timeInterval > 0.1 else {
+            print("🔍 [探索速度检测] 时间间隔太小，跳过")
+            return
+        }
+
+        // 计算速度
+        let speedMetersPerSecond = distance / timeInterval
+        let speedKmPerHour = speedMetersPerSecond * 3.6
+
+        print("🔍 [探索速度检测] 当前速度: \(String(format: "%.2f", speedKmPerHour)) km/h")
+
+        // 更新位置
+        lastExplorationLocation = currentLocation
+
+        // 检查是否超速
+        if speedKmPerHour > 30 {
+            handleExplorationOverspeed(speed: speedKmPerHour)
+        } else {
+            // 速度正常，清除警告和计时器
+            if explorationSpeedWarning != nil {
+                print("🔍 [探索速度检测] ✅ 速度已降下来")
+                explorationSpeedWarning = nil
+            }
+        }
+    }
+
+    /// 处理探索超速
+    /// - Parameter speed: 当前速度（km/h）
+    private func handleExplorationOverspeed(speed: Double) {
+        print("⚠️ [探索超速] 速度过快: \(String(format: "%.2f", speed)) km/h (限制: 30 km/h)")
+
+        let warningMessage = "速度过快 (\(String(format: "%.0f", speed)) km/h)，请减速！"
+
+        if explorationSpeedWarning == nil {
+            // 首次超速，开始倒计时
+            explorationSpeedWarning = warningMessage
+            print("⚠️ [探索超速] 开始倒计时：10秒后停止探索")
+
+            // 10秒后检查速度
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
+                guard isExploring else { return }
+
+                // 如果10秒后仍有警告，说明速度一直没降下来
+                if explorationSpeedWarning != nil {
+                    print("❌ [探索超速] 10秒内速度未降下，停止探索")
+                    explorationSpeedWarning = "速度过快，探索已停止"
+
+                    // 震动反馈
+                    let generator = UINotificationFeedbackGenerator()
+                    generator.prepare()
+                    generator.notificationOccurred(.error)
+
+                    // 延迟清除警告
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        explorationSpeedWarning = nil
+                    }
+
+                    // 停止探索
+                    stopExploration(success: false)
+                }
+            }
+        } else {
+            // 更新警告消息
+            explorationSpeedWarning = warningMessage
         }
     }
 

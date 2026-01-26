@@ -36,9 +36,6 @@ class ExplorationManager: ObservableObject {
         totalWalkDistance: 0.0,
         todayWalkDistance: 0.0,
         walkDistanceRank: 0,
-        totalExploredArea: 0.0,
-        todayExploredArea: 0.0,
-        exploredAreaRank: 0,
         totalExplorationTime: 0,
         totalPOIsDiscovered: 0,
         totalItemsCollected: 0
@@ -396,9 +393,6 @@ class ExplorationManager: ObservableObject {
             totalWalkDistance: 0.0,
             todayWalkDistance: 0.0,
             walkDistanceRank: 0,
-            totalExploredArea: 0.0,
-            todayExploredArea: 0.0,
-            exploredAreaRank: 0,
             totalExplorationTime: 0,
             totalPOIsDiscovered: 0,
             totalItemsCollected: 0
