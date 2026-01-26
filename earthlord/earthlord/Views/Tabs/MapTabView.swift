@@ -20,6 +20,9 @@ struct MapTabView: View {
     /// 领地管理器
     @StateObject private var territoryManager = TerritoryManager()
 
+    /// 行走奖励管理器
+    @StateObject private var walkingRewardManager = WalkingRewardManager.shared
+
     /// 用户位置坐标
     @State private var userLocation: CLLocationCoordinate2D?
 
@@ -95,11 +98,18 @@ struct MapTabView: View {
             )
             .ignoresSafeArea(edges: .top) // 只忽略顶部安全区域，保留底部 TabBar
 
-            // 左上角坐标显示
-            VStack {
-                HStack {
-                    coordinateOverlay
+            // 左上角坐标和行走统计显示 + 右上角成就提示
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        coordinateOverlay
+                        walkingStatsOverlay
+                    }
                     Spacer()
+                    // 右上角成就提示
+                    if !walkingRewardManager.pendingAchievementRewards.isEmpty {
+                        achievementBadge
+                    }
                 }
                 Spacer()
             }
@@ -269,6 +279,118 @@ struct MapTabView: View {
         .padding(.vertical, 10)
         .background(Color.black.opacity(0.6))
         .cornerRadius(10)
+    }
+
+    /// 行走统计显示
+    private var walkingStatsOverlay: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            // 标题行
+            HStack(spacing: 6) {
+                Image(systemName: "figure.walk")
+                    .font(.system(size: 10))
+                    .foregroundColor(.green)
+
+                Text("行走")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+
+            // 今日距离
+            HStack(spacing: 4) {
+                Text("今日:")
+                    .font(.system(size: 10))
+                    .foregroundColor(.white.opacity(0.6))
+                Text(String(format: "%.0fm", locationManager.todayWalkDistance))
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white)
+            }
+
+            // 总距离
+            HStack(spacing: 4) {
+                Text("总计:")
+                    .font(.system(size: 10))
+                    .foregroundColor(.white.opacity(0.6))
+                Text(formatDistance(locationManager.totalWalkDistance))
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white)
+            }
+
+            // 每日目标进度条
+            if walkingRewardManager.dailyGoalProgress > 0 {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text("目标")
+                            .font(.system(size: 9))
+                            .foregroundColor(.white.opacity(0.5))
+                        Spacer()
+                        Text(String(format: "%.0f%%", walkingRewardManager.dailyGoalProgress * 100))
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(walkingRewardManager.dailyGoalAchieved ? .green : .yellow)
+                    }
+
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            // 背景
+                            Rectangle()
+                                .fill(Color.white.opacity(0.2))
+                                .frame(height: 3)
+
+                            // 进度
+                            Rectangle()
+                                .fill(walkingRewardManager.dailyGoalAchieved ? Color.green : Color.yellow)
+                                .frame(width: geometry.size.width * walkingRewardManager.dailyGoalProgress, height: 3)
+                        }
+                    }
+                    .frame(height: 3)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.black.opacity(0.6))
+        .cornerRadius(10)
+    }
+
+    /// 格式化距离显示
+    private func formatDistance(_ distance: Double) -> String {
+        if distance >= 1000 {
+            return String(format: "%.2fkm", distance / 1000)
+        } else {
+            return String(format: "%.0fm", distance)
+        }
+    }
+
+    /// 成就提示徽章
+    private var achievementBadge: some View {
+        VStack(spacing: 4) {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.yellow)
+
+                // 数量徽章
+                if walkingRewardManager.pendingAchievementRewards.count > 1 {
+                    Text("\(walkingRewardManager.pendingAchievementRewards.count)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(4)
+                        .background(Color.red)
+                        .clipShape(Circle())
+                        .offset(x: 8, y: -8)
+                }
+            }
+
+            Text("成就")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.white)
+        }
+        .padding(8)
+        .background(Color.black.opacity(0.6))
+        .cornerRadius(10)
+        .onTapGesture {
+            // TODO: 打开成就列表界面
+            print("🏆 点击成就徽章，待领取: \(walkingRewardManager.pendingAchievementRewards.count)")
+        }
     }
 
     /// 圈地按钮

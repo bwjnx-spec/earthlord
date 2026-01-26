@@ -59,6 +59,27 @@ class LocationManager: NSObject, ObservableObject {
     /// 计算得到的领地面积（平方米）
     @Published var calculatedArea: Double = 0
 
+    // MARK: - 行走距离统计属性
+
+    /// 总行走距离（米）
+    @Published var totalWalkDistance: Double = 0
+
+    /// 今日行走距离（米）
+    @Published var todayWalkDistance: Double = 0
+
+    /// 上次记录的日期（用于判断是否需要重置今日距离）
+    private var lastRecordDate: Date {
+        get {
+            if let date = UserDefaults.standard.object(forKey: "lastWalkRecordDate") as? Date {
+                return date
+            }
+            return Date()
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "lastWalkRecordDate")
+        }
+    }
+
     /// 当前位置（Timer 采点用）
     var currentLocation: CLLocation?
 
@@ -90,35 +111,23 @@ class LocationManager: NSObject, ObservableObject {
     private let recordInterval: TimeInterval = 2.0
 
     /// 闭环距离阈值（米）
-    private let closureDistanceThreshold: Double = 100.0  // ⚠️ 临时放宽到100米，方便测试
+    private let closureDistanceThreshold: Double = 10.0  // 原游戏设计：起点和终点距离 < 10米
 
     // MARK: - 验证常量
 
-    /// 最少路径点数（闭环检测前提条件）- 模拟器中降低要求
+    /// 最少路径点数（闭环检测前提条件）
     private var minimumPathPoints: Int {
-        if isRunningOnSimulator {
-            return 4  // 模拟器中降低到 4 个点
-        } else {
-            return 4  // ⚠️ 临时改为4个点，方便测试（正式版应该是10）
-        }
+        return 10  // 原游戏设计：至少 10 个路径点
     }
 
-    /// 最小行走距离（米）- 模拟器中降低要求
+    /// 最小行走距离（米）
     private var minimumTotalDistance: Double {
-        if isRunningOnSimulator {
-            return 5.0  // 模拟器中降低到 5 米
-        } else {
-            return 5.0  // ⚠️ 临时改为5米，方便测试（正式版应该是50.0）
-        }
+        return 50.0  // 原游戏设计：至少行走 50 米
     }
 
-    /// 最小领地面积（平方米）- 模拟器中降低要求
+    /// 最小领地面积（平方米）
     private var minimumEnclosedArea: Double {
-        if isRunningOnSimulator {
-            return 10.0  // 模拟器中降低到 10 平方米
-        } else {
-            return 10.0  // ⚠️ 临时改为 10 m²，方便测试（正式版应该是 100.0）
-        }
+        return 100.0  // 原游戏设计：至少 100 平方米
     }
 
     /// 上次记录位置的时间戳（用于速度计算）- 使用 GPS 时间戳，不是系统时间
@@ -180,18 +189,15 @@ class LocationManager: NSObject, ObservableObject {
 
         print("📍 LocationManager 初始化完成")
         print("   当前授权状态: \(authorizationStatusDescription)")
+        print("   游戏设计参数:")
+        print("   - 最少点数: \(minimumPathPoints)")
+        print("   - 最小距离: \(minimumTotalDistance)m")
+        print("   - 最小面积: \(minimumEnclosedArea)m²")
+        print("   - 闭环阈值: \(closureDistanceThreshold)m")
+        print("   - 采点距离: \(minRecordDistance)m")
 
-        // 显示运行环境
-        if isRunningOnSimulator {
-            print("⚠️ 运行在模拟器上 - 已启用测试模式")
-            print("   采点距离要求: \(minRecordDistance)m (真机: 3.0m)")
-            print("   最少点数: \(minimumPathPoints) (真机: 10)")
-            print("   最小距离: \(minimumTotalDistance)m (真机: 50m)")
-            print("   最小面积: \(minimumEnclosedArea)m² (真机: 100m²)")
-            print("   💡 提示: 使用 Xcode 的 Features → Location 菜单模拟位置移动")
-        } else {
-            print("✅ 运行在真机上 - 使用生产配置")
-        }
+        // 加载行走距离数据
+        loadWalkingStats()
 
         // 启动网络状态监控
         setupNetworkMonitoring()
@@ -437,6 +443,8 @@ class LocationManager: NSObject, ObservableObject {
             distanceFromLast = location.distance(from: lastLocation)
             // 累加到总距离
             logger.updateDistance(distance: distanceFromLast, isIncrement: true)
+            // 更新行走距离统计
+            updateWalkingDistance(distance: distanceFromLast)
         }
 
         pathCoordinates.append(gcjCoord)
@@ -789,20 +797,6 @@ class LocationManager: NSObject, ObservableObject {
     func validateTerritory() -> (isValid: Bool, errorMessage: String?) {
         print("🔍 validateTerritory() 开始执行")
 
-        // ⚠️⚠️⚠️ 临时禁用所有验证，直接通过 ⚠️⚠️⚠️
-        print("⚠️ 验证已临时禁用，自动通过")
-
-        // 计算面积用于显示
-        let area = calculatePolygonArea()
-        calculatedArea = area
-
-        let successMessage = "圈地成功！领地面积: \(String(format: "%.0f", area))m² (验证已禁用)"
-        print("🎉 \(successMessage)")
-        TerritoryLogger.shared.log(successMessage, type: .success)
-
-        return (true, nil)
-
-        /* ========== 原始验证逻辑（已禁用）==========
         // 添加分隔符，让日志更醒目
         TerritoryLogger.shared.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━", type: .info)
         TerritoryLogger.shared.log("开始领地验证", type: .info)
@@ -868,7 +862,60 @@ class LocationManager: NSObject, ObservableObject {
         TerritoryLogger.shared.log(successMessage, type: .success)
         TerritoryLogger.shared.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━", type: .info)
         return (true, nil)
-        ========== 原始验证逻辑结束 ========== */
+    }
+
+    // MARK: - Walking Distance Tracking
+
+    /// 加载行走距离统计
+    private func loadWalkingStats() {
+        // 加载总距离
+        totalWalkDistance = UserDefaults.standard.double(forKey: "totalWalkDistance")
+
+        // 检查是否需要重置今日距离
+        let today = Calendar.current.startOfDay(for: Date())
+        let lastDay = Calendar.current.startOfDay(for: lastRecordDate)
+
+        if today > lastDay {
+            // 新的一天，重置今日距离
+            todayWalkDistance = 0
+            UserDefaults.standard.set(0, forKey: "todayWalkDistance")
+            lastRecordDate = Date()
+            print("📊 新的一天，今日行走距离已重置")
+        } else {
+            // 同一天，加载今日距离
+            todayWalkDistance = UserDefaults.standard.double(forKey: "todayWalkDistance")
+        }
+
+        print("📊 行走统计已加载:")
+        print("   - 总距离: \(String(format: "%.2f", totalWalkDistance))m")
+        print("   - 今日距离: \(String(format: "%.2f", todayWalkDistance))m")
+    }
+
+    /// 保存行走距离统计
+    private func saveWalkingStats() {
+        UserDefaults.standard.set(totalWalkDistance, forKey: "totalWalkDistance")
+        UserDefaults.standard.set(todayWalkDistance, forKey: "todayWalkDistance")
+        lastRecordDate = Date()
+    }
+
+    /// 更新行走距离
+    /// - Parameter distance: 新增的距离（米）
+    func updateWalkingDistance(distance: Double) {
+        totalWalkDistance += distance
+        todayWalkDistance += distance
+        saveWalkingStats()
+
+        print("📊 行走距离已更新: +\(String(format: "%.2f", distance))m")
+        print("   - 总距离: \(String(format: "%.2f", totalWalkDistance))m")
+        print("   - 今日距离: \(String(format: "%.2f", todayWalkDistance))m")
+
+        // 通知奖励管理器更新
+        Task {
+            await WalkingRewardManager.shared.updateWalkingDistance(
+                totalDistance: totalWalkDistance,
+                todayDistance: todayWalkDistance
+            )
+        }
     }
 
     // MARK: - Private Helpers
