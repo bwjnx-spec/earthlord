@@ -23,6 +23,12 @@ struct MapTabView: View {
     /// 行走奖励管理器
     @StateObject private var walkingRewardManager = WalkingRewardManager.shared
 
+    /// 探索管理器
+    @StateObject private var explorationManager = ExplorationManager.shared
+
+    /// 玩家位置服务
+    @StateObject private var playerLocationService = PlayerLocationService.shared
+
     /// 用户位置坐标
     @State private var userLocation: CLLocationCoordinate2D?
 
@@ -87,6 +93,12 @@ struct MapTabView: View {
     /// 上次探索位置（用于速度检测）
     @State private var lastExplorationLocation: CLLocation?
 
+    /// 是否显示 POI 搜刮弹窗
+    @State private var showPOILootSheet = false
+
+    /// 当前选中的 POI（用于搜刮弹窗）
+    @State private var selectedPOI: POI?
+
     /// 当前用户 ID（方便访问）
     private var currentUserId: String? {
         authManager.currentUser?.id
@@ -106,7 +118,14 @@ struct MapTabView: View {
                 isPathClosed: $locationManager.isPathClosed,
                 territories: territories,
                 territoriesVersion: $territoriesVersion,
-                currentUserId: authManager.currentUser?.id
+                currentUserId: authManager.currentUser?.id,
+                pois: explorationManager.nearbyPOIs,
+                poisVersion: $explorationManager.poisVersion,
+                onPOITapped: { poi in
+                    // POI 被点击时显示搜刮弹窗
+                    selectedPOI = poi
+                    showPOILootSheet = true
+                }
             )
             .ignoresSafeArea(edges: .top) // 只忽略顶部安全区域，保留底部 TabBar
 
@@ -130,6 +149,14 @@ struct MapTabView: View {
 
             // 覆盖层 UI
             VStack {
+                // 玩家密度指示器（探索时显示）
+                if explorationManager.isExploring {
+                    playerDensityIndicator
+                        .padding(.top, 60)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .animation(.spring(), value: playerLocationService.currentDensityLevel)
+                }
+
                 // 顶部验证结果横幅
                 if showValidationBanner {
                     validationResultBanner
@@ -158,6 +185,14 @@ struct MapTabView: View {
                 // 探索速度警告横幅
                 if let warning = explorationSpeedWarning {
                     explorationSpeedWarningBanner(warning: warning)
+                }
+
+                // 距离起点提示（圈地时显示）
+                if locationManager.isTracking,
+                   !locationManager.isPathClosed,
+                   let distance = locationManager.distanceToStartPoint,
+                   distance <= 30 {  // 只在30米内显示
+                    distanceToStartBanner(distance: distance)
                 }
 
                 Spacer()
@@ -203,8 +238,29 @@ struct MapTabView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16) // 在 TabBar 上方留出一点空间
             }
+            // 探索结果弹窗
             .sheet(isPresented: $showExplorationResult) {
                 ExplorationResultView(sessionResult: MockExplorationData.mockExplorationSessionResult)
+            }
+            // POI 搜刮弹窗
+            .sheet(isPresented: $showPOILootSheet) {
+                if let poi = selectedPOI {
+                    POILootSheetView(
+                        poi: poi,
+                        onDismiss: {
+                            showPOILootSheet = false
+                            selectedPOI = nil
+                        },
+                        onLootComplete: { result in
+                            showPOILootSheet = false
+                            selectedPOI = nil
+                            // 可以在这里显示搜刮结果通知
+                            if let result = result {
+                                print("✅ 搜刮完成: 获得 \(result.itemsCollected.count) 件物品")
+                            }
+                        }
+                    )
+                }
             }
 
             // 定位权限被拒绝时的提示卡片
@@ -246,14 +302,51 @@ struct MapTabView: View {
                     withAnimation {
                         showValidationBanner = true
                     }
-                    // 3 秒后自动隐藏
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+
+                    // 添加触觉反馈
+                    if locationManager.territoryValidationPassed {
+                        // 成功：轻微震动
+                        let generator = UINotificationFeedbackGenerator()
+                        generator.notificationOccurred(.success)
+                    } else {
+                        // 失败：警告震动
+                        let generator = UINotificationFeedbackGenerator()
+                        generator.notificationOccurred(.error)
+                    }
+
+                    // 失败时延长显示时间，让用户有足够时间查看错误
+                    let displayDuration: Double = locationManager.territoryValidationPassed ? 3.0 : 6.0
+                    DispatchQueue.main.asyncAfter(deadline: .now() + displayDuration) {
                         withAnimation {
                             showValidationBanner = false
                         }
                     }
                 }
             }
+        }
+        // 监听 POI 搜刮提示
+        .onReceive(explorationManager.$showLootPrompt) { shouldShow in
+            if shouldShow, let poi = explorationManager.currentLootablePOI {
+                print("🎯 [搜刮提示] 自动弹出: \(poi.name)")
+                selectedPOI = poi
+                showPOILootSheet = true
+                // 关闭 ExplorationManager 的提示状态
+                explorationManager.dismissLootPrompt()
+            }
+        }
+        // 监听 nearbyPOIs 数量变化（调试用）
+        .onChange(of: explorationManager.nearbyPOIs.count) { oldValue, newValue in
+            print("📍 [POI] nearbyPOIs 数量变化: \(oldValue) -> \(newValue)")
+            if newValue > 0 {
+                print("📍 [POI] 当前 POI 列表:")
+                for (index, poi) in explorationManager.nearbyPOIs.enumerated() {
+                    print("   \(index + 1). \(poi.name) - 状态: \(poi.status)")
+                }
+            }
+        }
+        // 监听 poisVersion 变化（调试用）
+        .onChange(of: explorationManager.poisVersion) { oldValue, newValue in
+            print("📍 [POI] poisVersion 变化: \(oldValue) -> \(newValue)")
         }
     }
 
@@ -466,16 +559,29 @@ struct MapTabView: View {
     /// 探索按钮
     private var exploreButton: some View {
         Button(action: {
-            startExploration()
+            toggleExploration()
         }) {
             HStack(spacing: 8) {
-                if isExploring {
+                if explorationManager.isLoading {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(0.8)
 
-                    Text("探索中...")
+                    Text("搜索中...")
                         .font(.system(size: 14, weight: .medium))
+                } else if explorationManager.isExploring {
+                    Image(systemName: "stop.circle.fill")
+                        .font(.system(size: 18, weight: .medium))
+
+                    Text("停止探索")
+                        .font(.system(size: 14, weight: .medium))
+
+                    // 显示已发现的 POI 数量
+                    if !explorationManager.nearbyPOIs.isEmpty {
+                        Text("(\(explorationManager.nearbyPOIs.count))")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
                 } else {
                     Image(systemName: "binoculars.fill")
                         .font(.system(size: 18, weight: .medium))
@@ -488,14 +594,14 @@ struct MapTabView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(
-                isExploring
-                    ? ApocalypseTheme.textMuted
+                explorationManager.isExploring
+                    ? ApocalypseTheme.danger
                     : ApocalypseTheme.primary
             )
             .cornerRadius(22)
             .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
         }
-        .disabled(isExploring || !locationManager.isAuthorized)
+        .disabled(explorationManager.isLoading || !locationManager.isAuthorized)
         .opacity(locationManager.isAuthorized ? 1.0 : 0.5)
     }
 
@@ -584,6 +690,79 @@ struct MapTabView: View {
     }
 
     /// 验证结果横幅（根据验证结果显示成功或失败）
+    /// POI 来源指示器
+    private var poiSourceIndicator: some View {
+        HStack(spacing: 6) {
+            Image(systemName: explorationManager.currentPOISource == .appleMaps
+                ? "mappin.circle.fill"
+                : "dice.fill")
+                .font(.system(size: 14))
+
+            Text(explorationManager.currentPOISource.rawValue)
+                .font(.system(size: 13, weight: .medium))
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            explorationManager.currentPOISource == .appleMaps
+                ? Color.green.opacity(0.9)
+                : Color.blue.opacity(0.9)
+        )
+        .cornerRadius(20)
+        .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
+    }
+
+    /// 玩家密度指示器
+    private var playerDensityIndicator: some View {
+        HStack(spacing: 6) {
+            Image(systemName: densityIcon)
+                .font(.system(size: 14))
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text("\(playerLocationService.nearbyPlayerCount) 人")
+                    .font(.system(size: 13, weight: .medium))
+                Text(playerLocationService.currentDensityLevel.description)
+                    .font(.system(size: 9))
+                    .opacity(0.8)
+            }
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(densityBackgroundColor.opacity(0.9))
+        .cornerRadius(20)
+        .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
+    }
+
+    /// 根据密度等级返回图标
+    private var densityIcon: String {
+        switch playerLocationService.currentDensityLevel {
+        case .solo:
+            return "person.fill"
+        case .low:
+            return "person.2.fill"
+        case .medium:
+            return "person.3.fill"
+        case .high:
+            return "person.3.sequence.fill"
+        }
+    }
+
+    /// 根据密度等级返回背景颜色
+    private var densityBackgroundColor: Color {
+        switch playerLocationService.currentDensityLevel {
+        case .solo:
+            return .gray
+        case .low:
+            return .blue
+        case .medium:
+            return .orange
+        case .high:
+            return .red
+        }
+    }
+
     private var validationResultBanner: some View {
         HStack(spacing: 8) {
             Image(systemName: locationManager.territoryValidationPassed
@@ -720,6 +899,35 @@ struct MapTabView: View {
         .animation(.easeInOut(duration: 0.3), value: explorationSpeedWarning)
     }
 
+    /// 距离起点提示横幅
+    private func distanceToStartBanner(distance: Double) -> some View {
+        VStack {
+            HStack(spacing: 12) {
+                Image(systemName: "location.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(.white)
+
+                Text("距离起点 \(String(format: "%.0f", distance))米，继续靠近可闭环（<20米）")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.blue)
+            .cornerRadius(12)
+            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+            .padding(.horizontal, 16)
+            .padding(.top, 120)
+
+            Spacer()
+        }
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .animation(.easeInOut(duration: 0.3), value: distance)
+    }
+
     // MARK: - Actions
 
     /// 页面出现时的处理
@@ -764,58 +972,76 @@ struct MapTabView: View {
         }
     }
 
-    /// 开始探索
-    private func startExploration() {
-        guard !isExploring else {
+    /// 切换探索状态
+    private func toggleExploration() {
+        print("🔍 [诊断] toggleExploration 被调用")
+        print("🔍 [诊断] explorationManager.isExploring = \(explorationManager.isExploring)")
+        print("🔍 [诊断] locationManager.isAuthorized = \(locationManager.isAuthorized)")
+        print("🔍 [诊断] locationManager.currentLocation = \(locationManager.currentLocation?.description ?? "nil")")
+
+        if explorationManager.isExploring {
+            // 停止探索
+            print("🔍 [诊断] 准备停止探索")
+            stopRealExploration()
+        } else {
+            // 开始探索
+            print("🔍 [诊断] 准备开始探索")
+            startRealExploration()
+        }
+    }
+
+    /// 开始真实 POI 探索
+    private func startRealExploration() {
+        print("🔍 [诊断] startRealExploration 开始执行")
+
+        guard !explorationManager.isExploring else {
             print("🔍 [探索] 已在探索中，忽略")
             return
         }
+        print("🔍 [诊断] 通过 isExploring 检查")
 
         guard locationManager.isAuthorized else {
             print("⚠️ [探索] 未授权定位，无法探索")
             return
         }
+        print("🔍 [诊断] 通过 isAuthorized 检查")
 
         guard let currentLocation = locationManager.currentLocation else {
             print("⚠️ [探索] 无当前位置，无法探索")
             return
         }
+        print("🔍 [诊断] 通过 currentLocation 检查")
 
-        print("🔍 [探索] 开始探索")
+        print("🔍 [探索] 开始真实 POI 探索")
         print("   - 起始位置: (\(String(format: "%.6f", currentLocation.coordinate.latitude)), \(String(format: "%.6f", currentLocation.coordinate.longitude)))")
 
-        isExploring = true
         explorationStartTime = Date()
         lastExplorationLocation = currentLocation
         explorationSpeedWarning = nil
 
-        // 启动速度检测定时器（每秒检测一次）
+        // 更新 ExplorationManager 的当前位置
+        explorationManager.currentLocation = currentLocation.coordinate
+
+        // 启动速度检测定时器
         startExplorationSpeedMonitoring()
 
-        // 模拟1.5秒的搜索过程
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            // 如果仍在探索中（未被超速中断），显示结果
-            if self.isExploring {
-                print("🔍 [探索] 探索完成")
-                self.stopExploration(success: true)
-            }
+        // 搜索附近的真实 POI
+        Task {
+            await explorationManager.searchNearbyRealPOIs()
         }
     }
 
-    /// 停止探索
-    /// - Parameter success: 是否成功完成
-    private func stopExploration(success: Bool) {
-        print("🔍 [探索] 停止探索 - \(success ? "成功" : "失败")")
+    /// 停止真实 POI 探索
+    private func stopRealExploration() {
+        print("🔍 [探索] 停止探索")
 
-        isExploring = false
         explorationSpeedWarning = nil
         stopExplorationSpeedMonitoring()
         lastExplorationLocation = nil
         explorationStartTime = nil
 
-        if success {
-            showExplorationResult = true
-        }
+        // 停止探索管理器
+        explorationManager.stopExploration()
     }
 
     /// 启动探索速度监控
@@ -836,11 +1062,19 @@ struct MapTabView: View {
 
     /// 检测探索速度
     private func checkExplorationSpeed() {
-        guard isExploring else { return }
+        guard explorationManager.isExploring else { return }
 
-        guard let currentLocation = locationManager.currentLocation,
-              let lastLocation = lastExplorationLocation else {
-            print("🔍 [探索速度检测] 等待位置更新...")
+        guard let currentLocation = locationManager.currentLocation else {
+            print("🔍 [探索速度检测] ❌ 无当前位置")
+            return
+        }
+
+        // 【关键】始终更新 ExplorationManager 的当前位置，即使没有上次位置
+        explorationManager.currentLocation = currentLocation.coordinate
+
+        guard let lastLocation = lastExplorationLocation else {
+            print("🔍 [探索速度检测] 初始化位置: (\(String(format: "%.6f", currentLocation.coordinate.latitude)), \(String(format: "%.6f", currentLocation.coordinate.longitude)))")
+            lastExplorationLocation = currentLocation
             return
         }
 
@@ -848,8 +1082,11 @@ struct MapTabView: View {
         let distance = currentLocation.distance(from: lastLocation)
         let timeInterval = currentLocation.timestamp.timeIntervalSince(lastLocation.timestamp)
 
+        // 【关键】每次都更新位置，确保距离检测有最新数据
+        lastExplorationLocation = currentLocation
+
         guard timeInterval > 0.1 else {
-            print("🔍 [探索速度检测] 时间间隔太小，跳过")
+            // 时间间隔太小，但仍然要更新位置
             return
         }
 
@@ -857,10 +1094,10 @@ struct MapTabView: View {
         let speedMetersPerSecond = distance / timeInterval
         let speedKmPerHour = speedMetersPerSecond * 3.6
 
-        print("🔍 [探索速度检测] 当前速度: \(String(format: "%.2f", speedKmPerHour)) km/h")
-
-        // 更新位置
-        lastExplorationLocation = currentLocation
+        // 每5秒打印一次速度（避免日志过多）
+        if Int(Date().timeIntervalSince1970) % 5 == 0 {
+            print("🔍 [探索速度检测] 速度: \(String(format: "%.1f", speedKmPerHour)) km/h, 位置: (\(String(format: "%.6f", currentLocation.coordinate.latitude)), \(String(format: "%.6f", currentLocation.coordinate.longitude)))")
+        }
 
         // 检查是否超速
         if speedKmPerHour > 30 {
@@ -888,7 +1125,7 @@ struct MapTabView: View {
 
             // 10秒后检查速度
             DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
-                guard isExploring else { return }
+                guard explorationManager.isExploring else { return }
 
                 // 如果10秒后仍有警告，说明速度一直没降下来
                 if explorationSpeedWarning != nil {
@@ -906,7 +1143,7 @@ struct MapTabView: View {
                     }
 
                     // 停止探索
-                    stopExploration(success: false)
+                    stopRealExploration()
                 }
             }
         } else {

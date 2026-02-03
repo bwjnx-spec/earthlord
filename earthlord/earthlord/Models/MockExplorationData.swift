@@ -60,6 +60,15 @@ enum POIStatus: String {
     case dangerous = "危险"           // 有危险，需要特殊条件才能进入
 }
 
+// MARK: - POI 来源
+
+/// POI 来源枚举
+/// 用于标识 POI 的数据来源
+enum POISource: String {
+    case appleMaps = "真实地点"    // 来自 Apple Maps
+    case procedural = "生成地点"   // 程序生成
+}
+
 // MARK: - POI 类型
 
 /// POI 类型枚举
@@ -123,6 +132,11 @@ struct POI: Identifiable, Hashable {
     let dangerLevel: Int              // 危险等级 1-5
     let description: String           // POI 描述
     var distance: Double?             // 距离玩家的距离（米）- 动态计算
+
+    // POI 来源追踪（新增）
+    var source: POISource = .procedural    // POI 来源（默认为程序生成）
+    var geohash: String?                   // 生成时的 geohash（用于调试）
+    var generatedAt: Date?                 // 生成时间
 
     // Hashable conformance
     func hash(into hasher: inout Hasher) {

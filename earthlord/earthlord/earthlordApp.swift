@@ -28,6 +28,9 @@ struct earthlordApp: App {
                         .onAppear {
                             print("✅ 已进入主界面")
                             print("   用户: \(authManager.currentUser?.email ?? "未知")")
+
+                            // 启动玩家位置服务
+                            PlayerLocationService.shared.startService()
                         }
                 } else {
                     // 未登录 → 登录页
@@ -88,6 +91,9 @@ struct earthlordApp: App {
                         authManager.otpSent = false
                         authManager.otpVerified = false
                         print("   已清除所有认证状态，即将跳转到登录页")
+
+                        // 停止玩家位置服务
+                        PlayerLocationService.shared.stopService()
 
                     case .userUpdated:
                         print("👤 用户信息已更新")

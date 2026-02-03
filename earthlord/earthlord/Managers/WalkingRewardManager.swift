@@ -180,10 +180,15 @@ class WalkingRewardManager: ObservableObject {
         // 移除待领取列表
         pendingAchievementRewards.remove(at: index)
 
-        // TODO: 实际发放奖励到玩家账户
-        print("🎁 领取成就奖励：\(achievement.name)")
-        print("   - 经验值: +\(achievement.rewardExp)")
-        print("   - 货币: +\(achievement.rewardCurrency)")
+        // 实际发放奖励到玩家账户
+        todayRewardExp += achievement.rewardExp
+        todayRewardCurrency += achievement.rewardCurrency
+
+        print("🎁 成功领取成就奖励：\(achievement.name)")
+        print("   - 经验值: +\(achievement.rewardExp) (今日总计: \(todayRewardExp))")
+        print("   - 货币: +\(achievement.rewardCurrency) (今日总计: \(todayRewardCurrency))")
+
+        // TODO: 同步到 Supabase 玩家账户
 
         // 保存数据
         saveRewardData()

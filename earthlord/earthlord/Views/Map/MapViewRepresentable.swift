@@ -3,7 +3,7 @@
 //  earthlord
 //
 //  MKMapView 的 SwiftUI 包装器 - 显示末世风格的苹果地图
-//  扩展支持路径轨迹渲染（圈地模式）
+//  扩展支持路径轨迹渲染（圈地模式）和 POI 标注显示
 //
 
 import SwiftUI
@@ -41,6 +41,17 @@ struct MapViewRepresentable: UIViewRepresentable {
     /// 当前用户 ID（用于区分我的领地和他人领地）
     var currentUserId: String?
 
+    // MARK: - POI 相关
+
+    /// POI 列表
+    var pois: [POI]
+
+    /// POI 版本号（触发 POI 标注更新）
+    @Binding var poisVersion: Int
+
+    /// POI 点击回调
+    var onPOITapped: ((POI) -> Void)?
+
     // MARK: - UIViewRepresentable
 
     /// 创建 MKMapView
@@ -67,6 +78,9 @@ struct MapViewRepresentable: UIViewRepresentable {
 
         // 设置代理 ⚠️ 关键！否则 didUpdate userLocation 不会被调用
         mapView.delegate = context.coordinator
+
+        // 注册 POI 标注视图
+        mapView.register(POIAnnotationView.self, forAnnotationViewWithReuseIdentifier: POIAnnotationView.reuseIdentifier)
 
         // 应用末世滤镜效果
         applyApocalypseFilter(to: mapView)
@@ -112,6 +126,47 @@ struct MapViewRepresentable: UIViewRepresentable {
             context.coordinator.lastTerritoriesVersion = territoriesVersion
             drawTerritories(mapView: mapView, context: context)
         }
+
+        // 更新 POI 标注（检测版本变化或数量变化）
+        let currentPOICount = pois.count
+        if context.coordinator.lastPOIsVersion != poisVersion ||
+           context.coordinator.lastPOICount != currentPOICount {
+            print("📍 检测到 POI 变化:")
+            print("   - 版本: \(context.coordinator.lastPOIsVersion) -> \(poisVersion)")
+            print("   - 数量: \(context.coordinator.lastPOICount) -> \(currentPOICount)")
+            context.coordinator.lastPOIsVersion = poisVersion
+            context.coordinator.lastPOICount = currentPOICount
+            updatePOIAnnotations(mapView: mapView, context: context)
+        }
+    }
+
+    /// 更新 POI 标注
+    private func updatePOIAnnotations(mapView: MKMapView, context: Context) {
+        print("📍 [POI标注] 开始更新...")
+        print("📍 [地图] 当前pois数量: \(pois.count)")
+        print("📍 [地图] 准备添加 \(pois.count) 个标注")
+
+        // 移除旧的 POI 标注
+        let existingPOIAnnotations = mapView.annotations.compactMap { $0 as? POIAnnotation }
+        print("📍 [POI标注] 移除旧标注: \(existingPOIAnnotations.count) 个")
+        mapView.removeAnnotations(existingPOIAnnotations)
+
+        // 添加新的 POI 标注
+        var addedCount = 0
+        for poi in pois {
+            let annotation = POIAnnotation(poi: poi)
+            mapView.addAnnotation(annotation)
+            addedCount += 1
+            print("📍 [POI标注] 添加: \(poi.name) at (\(String(format: "%.6f", poi.coordinate.latitude)), \(String(format: "%.6f", poi.coordinate.longitude))), 距离: \(poi.distance.map { String(format: "%.0f", $0) + "m" } ?? "未知")")
+        }
+
+        print("✅ [POI标注] 更新完成，共添加 \(addedCount) 个标注")
+        print("📍 [POI标注] 地图当前总标注数: \(mapView.annotations.count)")
+
+        // 打印地图可见区域信息（用于诊断标注是否在可见区域内）
+        let region = mapView.region
+        print("📍 [地图] 可见区域中心: (\(String(format: "%.6f", region.center.latitude)), \(String(format: "%.6f", region.center.longitude)))")
+        print("📍 [地图] 可见区域跨度: 纬度±\(String(format: "%.6f", region.span.latitudeDelta/2)), 经度±\(String(format: "%.6f", region.span.longitudeDelta/2))")
     }
 
     /// 更新路径覆盖层（当前正在圈的路径）
@@ -256,6 +311,12 @@ struct MapViewRepresentable: UIViewRepresentable {
         /// 上次领地版本号（用于检测变化）
         var lastTerritoriesVersion: Int = 0
 
+        /// 上次 POI 版本号（用于检测变化）
+        var lastPOIsVersion: Int = 0
+
+        /// 上次 POI 数量（用于检测变化）
+        var lastPOICount: Int = 0
+
         /// 领地覆盖层数组（用于跟踪已绘制的领地）
         var territoryOverlays: [MKPolygon] = []
 
@@ -314,13 +375,37 @@ struct MapViewRepresentable: UIViewRepresentable {
             print("❌ 地图加载失败: \(error.localizedDescription)")
         }
 
-        /// 用户位置视图（可自定义蓝点样式）
+        /// 标注视图（POI 和用户位置）
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             // 用户位置使用默认蓝点
             if annotation is MKUserLocation {
                 return nil
             }
+
+            // POI 标注
+            if let poiAnnotation = annotation as? POIAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(
+                    withIdentifier: POIAnnotationView.reuseIdentifier,
+                    for: annotation
+                ) as? POIAnnotationView ?? POIAnnotationView(annotation: annotation, reuseIdentifier: POIAnnotationView.reuseIdentifier)
+
+                view.annotation = poiAnnotation
+                view.configure(with: poiAnnotation)
+
+                return view
+            }
+
             return nil
+        }
+
+        /// POI 标注 Callout 按钮点击
+        func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
+            guard let poiAnnotation = view.annotation as? POIAnnotation else { return }
+
+            print("📍 POI 点击: \(poiAnnotation.poi.name)")
+
+            // 调用回调
+            parent.onPOITapped?(poiAnnotation.poi)
         }
 
         /// ⭐ 关键方法：轨迹渲染器（必须实现否则轨迹不显示）
@@ -389,6 +474,9 @@ struct MapViewRepresentable: UIViewRepresentable {
         isPathClosed: .constant(false),
         territories: [],
         territoriesVersion: .constant(0),
-        currentUserId: nil
+        currentUserId: nil,
+        pois: [],
+        poisVersion: .constant(0),
+        onPOITapped: nil
     )
 }

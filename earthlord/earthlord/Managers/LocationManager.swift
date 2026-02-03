@@ -42,6 +42,9 @@ class LocationManager: NSObject, ObservableObject {
     /// 路径是否已闭合
     @Published var isPathClosed: Bool = false
 
+    /// 当前位置距离起点的距离（米）- 用于UI提示
+    @Published var distanceToStartPoint: Double?
+
     /// 速度警告信息
     @Published var speedWarning: String?
 
@@ -117,7 +120,7 @@ class LocationManager: NSObject, ObservableObject {
     private let recordInterval: TimeInterval = 2.0
 
     /// 闭环距离阈值（米）
-    private let closureDistanceThreshold: Double = 10.0  // 原游戏设计：起点和终点距离 < 10米
+    private let closureDistanceThreshold: Double = 20.0  // 考虑GPS精度，放宽到20米
 
     // MARK: - 验证常量
 
@@ -278,6 +281,7 @@ class LocationManager: NSObject, ObservableObject {
         speedWarning = nil
         isOverSpeed = false
         lastLocationTimestamp = nil
+        distanceToStartPoint = nil  // 重置距离起点的距离
 
         // 重置验证状态
         territoryValidationPassed = false
@@ -572,6 +576,9 @@ class LocationManager: NSObject, ObservableObject {
         let currentLocation = CLLocation(latitude: currentPoint.latitude, longitude: currentPoint.longitude)
         let distanceToStart = currentLocation.distance(from: startLocation)
 
+        // 更新距离（用于UI显示）
+        distanceToStartPoint = distanceToStart
+
         print("🔍 闭环检测: 距离起点 \(String(format: "%.1f", distanceToStart))m (阈值: \(closureDistanceThreshold)m)")
 
         // 记录距离到起点的日志
@@ -835,21 +842,25 @@ class LocationManager: NSObject, ObservableObject {
         print("✅ \(distanceCheckMessage)")
         TerritoryLogger.shared.log(distanceCheckMessage, type: .info)
 
-        // 3. 自交检测
+        // 3. 面积计算（提前计算，让失败时也能显示）
+        let area = calculatePolygonArea()
+        calculatedArea = area  // 保存计算得到的面积
+        print("📐 面积计算: \(String(format: "%.0f", area))m²")
+        TerritoryLogger.shared.log("面积计算: \(String(format: "%.0f", area))m²", type: .info)
+
+        // 4. 自交检测
         print("🔍 步骤3: 自交检测")
         let hasSelfIntersection = hasPathSelfIntersection()
         print("🔍 自交检测结果: \(hasSelfIntersection ? "有自交 ❌" : "无自交 ✅")")
         if hasSelfIntersection {
-            let error = "轨迹自相交，请勿画8字形"
+            let error = "轨迹自相交(8字形)，请重新圈地。已圈面积: \(String(format: "%.0f", area))m²"
             print("❌ 自交检测失败: \(error)")
             TerritoryLogger.shared.log("领地验证失败: \(error)", type: .error)
             return (false, error)
         }
         // 注意：hasPathSelfIntersection() 内部已经记录了 "自交检测: 无交叉 ✓" 的日志
 
-        // 4. 面积检查
-        let area = calculatePolygonArea()
-        calculatedArea = area  // 保存计算得到的面积
+        // 5. 面积检查
         print("🔍 步骤4: 面积检查 - 面积: \(String(format: "%.0f", area))m², 要求: \(String(format: "%.0f", minimumEnclosedArea))m²")
         if area < minimumEnclosedArea {
             let error = "面积不足: \(String(format: "%.0f", area))m² (需≥\(String(format: "%.0f", minimumEnclosedArea))m²)"
@@ -916,8 +927,8 @@ class LocationManager: NSObject, ObservableObject {
         print("   - 今日距离: \(String(format: "%.2f", todayWalkDistance))m")
 
         // 通知奖励管理器更新
-        Task {
-            await WalkingRewardManager.shared.updateWalkingDistance(
+        Task { @MainActor in
+            WalkingRewardManager.shared.updateWalkingDistance(
                 totalDistance: totalWalkDistance,
                 todayDistance: todayWalkDistance
             )
