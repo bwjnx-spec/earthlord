@@ -113,6 +113,66 @@ struct InventoryItem: Identifiable {
     var quality: ItemQuality?         // 品质（可选，部分物品没有品质）
     let obtainedAt: Date              // 获得时间
     let obtainedFrom: String?         // 获得来源（POI 名称等）
+
+    // MARK: - AI 生成相关字段
+
+    /// 是否为 AI 生成的物品
+    var isAIGenerated: Bool = false
+
+    /// AI 生成的独特名称
+    var aiName: String?
+
+    /// AI 生成的背景故事
+    var aiStory: String?
+
+    /// AI 分类（中文）
+    var aiCategory: String?
+
+    /// AI 稀有度（英文: common, uncommon, rare, epic, legendary）
+    var aiRarity: String?
+
+    // MARK: - 计算属性
+
+    /// 显示名称（优先使用 AI 名称）
+    var displayName: String {
+        if isAIGenerated, let aiName = aiName {
+            return aiName
+        }
+        return MockExplorationData.getItemDefinition(by: definitionId)?.name ?? "未知物品"
+    }
+
+    /// 显示稀有度（获取枚举值）
+    var displayRarity: ItemRarity {
+        if isAIGenerated, let aiRarity = aiRarity {
+            switch aiRarity {
+            case "common": return .common
+            case "uncommon": return .uncommon
+            case "rare": return .rare
+            case "epic": return .epic
+            case "legendary": return .legendary
+            default: return .common
+            }
+        }
+        return MockExplorationData.getItemDefinition(by: definitionId)?.rarity ?? .common
+    }
+
+    /// 显示分类（获取枚举值）
+    var displayCategory: ItemCategory {
+        if isAIGenerated, let aiCategory = aiCategory {
+            switch aiCategory {
+            case "水源": return .water
+            case "食物": return .food
+            case "医疗": return .medical
+            case "材料": return .material
+            case "工具": return .tool
+            case "武器": return .weapon
+            case "服装": return .clothing
+            case "杂物": return .misc
+            default: return .misc
+            }
+        }
+        return MockExplorationData.getItemDefinition(by: definitionId)?.category ?? .misc
+    }
 }
 
 // MARK: - POI 结构体

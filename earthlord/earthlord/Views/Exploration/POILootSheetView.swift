@@ -232,39 +232,89 @@ struct POILootSheetView: View {
                     .italic()
             } else {
                 ForEach(result.itemsCollected) { item in
-                    if let definition = MockExplorationData.getItemDefinition(by: item.definitionId) {
-                        HStack {
-                            Image(systemName: itemCategoryIcon(definition.category))
-                                .font(.title3)
-                                .foregroundColor(itemRarityColor(definition.rarity))
-                                .frame(width: 30)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(definition.name)
-                                    .font(.subheadline)
-                                    .foregroundColor(ApocalypseTheme.textPrimary)
-
-                                if let quality = item.quality {
-                                    Text(quality.rawValue)
-                                        .font(.caption)
-                                        .foregroundColor(ApocalypseTheme.textSecondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            Text("x\(item.quantity)")
-                                .font(.headline)
-                                .foregroundColor(ApocalypseTheme.primary)
-                        }
-                        .padding(.vertical, 4)
-                    }
+                    lootItemRow(item: item)
                 }
             }
         }
         .padding()
         .background(ApocalypseTheme.cardBackground)
         .cornerRadius(16)
+    }
+
+    /// 单个物品行视图
+    private func lootItemRow(item: InventoryItem) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            // 物品图标
+            ZStack {
+                // AI 生成标记
+                if item.isAIGenerated {
+                    Image(systemName: "sparkles")
+                        .font(.caption2)
+                        .foregroundColor(.yellow)
+                        .offset(x: 10, y: -10)
+                }
+
+                Image(systemName: itemCategoryIcon(item.displayCategory))
+                    .font(.title3)
+                    .foregroundColor(itemRarityColor(item.displayRarity))
+            }
+            .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 4) {
+                // 物品名称
+                HStack(spacing: 4) {
+                    Text(item.displayName)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(itemRarityColor(item.displayRarity))
+                        .lineLimit(2)
+
+                    // AI 生成徽章
+                    if item.isAIGenerated {
+                        Image(systemName: "sparkles")
+                            .font(.caption2)
+                            .foregroundColor(.yellow)
+                    }
+                }
+
+                // 稀有度和品质
+                HStack(spacing: 8) {
+                    // 稀有度标签
+                    Text(item.displayRarity.rawValue)
+                        .font(.caption2)
+                        .foregroundColor(itemRarityColor(item.displayRarity))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(itemRarityColor(item.displayRarity).opacity(0.2))
+                        .cornerRadius(4)
+
+                    // 品质
+                    if let quality = item.quality {
+                        Text(quality.rawValue)
+                            .font(.caption)
+                            .foregroundColor(ApocalypseTheme.textSecondary)
+                    }
+                }
+
+                // AI 生成的背景故事
+                if item.isAIGenerated, let story = item.aiStory, !story.isEmpty {
+                    Text(story)
+                        .font(.caption)
+                        .italic()
+                        .foregroundColor(ApocalypseTheme.textMuted)
+                        .lineLimit(2)
+                        .padding(.top, 2)
+                }
+            }
+
+            Spacer()
+
+            // 数量
+            Text("x\(item.quantity)")
+                .font(.headline)
+                .foregroundColor(ApocalypseTheme.primary)
+        }
+        .padding(.vertical, 6)
     }
 
     /// 错误视图

@@ -562,8 +562,8 @@ class ExplorationManager: NSObject, ObservableObject {
             throw ExplorationError.backpackFull
         }
 
-        // 生成掉落物品
-        let collectedItems = generateLoot(for: poi)
+        // 生成掉落物品（使用 AI 生成）
+        let collectedItems = await generateLoot(for: poi)
 
         // 添加到背包
         for item in collectedItems {
@@ -601,8 +601,22 @@ class ExplorationManager: NSObject, ObservableObject {
         return result
     }
 
-    /// 生成 POI 掉落物品
-    private func generateLoot(for poi: POI) -> [InventoryItem] {
+    /// 生成 POI 掉落物品（使用 AI 生成）
+    /// - Parameter poi: 目标 POI
+    /// - Returns: 生成的物品列表
+    private func generateLoot(for poi: POI) async -> [InventoryItem] {
+        print("🎲 [掉落] 开始为 \(poi.name) 生成掉落物品...")
+
+        // 使用 AI 物品生成器
+        let aiGenerator = AIItemGenerator.shared
+        let items = await aiGenerator.generateItems(for: poi)
+
+        print("🎲 [掉落] 生成完成，共 \(items.count) 个物品")
+        return items
+    }
+
+    /// 生成本地降级物品（备用，当直接调用时使用）
+    private func generateLocalLoot(for poi: POI) -> [InventoryItem] {
         var loot: [InventoryItem] = []
 
         // 基于 POI 可用物资列表生成掉落
@@ -624,7 +638,12 @@ class ExplorationManager: NSObject, ObservableObject {
                 quantity: quantity,
                 quality: quality,
                 obtainedAt: Date(),
-                obtainedFrom: poi.name
+                obtainedFrom: poi.name,
+                isAIGenerated: false,
+                aiName: nil,
+                aiStory: nil,
+                aiCategory: nil,
+                aiRarity: nil
             )
 
             loot.append(item)
@@ -839,6 +858,13 @@ private struct InventoryItemCodable: Codable {
     let obtainedAt: Date
     let obtainedFrom: String?
 
+    // AI 生成相关字段
+    var isAIGenerated: Bool
+    var aiName: String?
+    var aiStory: String?
+    var aiCategory: String?
+    var aiRarity: String?
+
     init(from item: InventoryItem) {
         self.id = item.id
         self.definitionId = item.definitionId
@@ -846,6 +872,11 @@ private struct InventoryItemCodable: Codable {
         self.qualityRaw = item.quality?.rawValue
         self.obtainedAt = item.obtainedAt
         self.obtainedFrom = item.obtainedFrom
+        self.isAIGenerated = item.isAIGenerated
+        self.aiName = item.aiName
+        self.aiStory = item.aiStory
+        self.aiCategory = item.aiCategory
+        self.aiRarity = item.aiRarity
     }
 
     func toInventoryItem() -> InventoryItem {
@@ -856,7 +887,12 @@ private struct InventoryItemCodable: Codable {
             quantity: quantity,
             quality: quality,
             obtainedAt: obtainedAt,
-            obtainedFrom: obtainedFrom
+            obtainedFrom: obtainedFrom,
+            isAIGenerated: isAIGenerated,
+            aiName: aiName,
+            aiStory: aiStory,
+            aiCategory: aiCategory,
+            aiRarity: aiRarity
         )
     }
 }
