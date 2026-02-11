@@ -104,6 +104,9 @@ struct AuthView: View {
                     // 第三方登录
                     thirdPartyLoginView
 
+                    // 隐私政策和技术支持链接
+                    policyLinksView
+
                     Spacer(minLength: 40)
                 }
             }
@@ -616,26 +619,6 @@ struct AuthView: View {
             }
             .padding(.horizontal, 32)
 
-            // Apple 登录按钮
-            Button(action: handleAppleSignIn) {
-                HStack {
-                    Image(systemName: "apple.logo")
-                        .font(.title3)
-                    Text("使用 Apple 登录")
-                        .font(.headline)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.black)
-                .foregroundColor(.white)
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                )
-            }
-            .padding(.horizontal, 32)
-
             // Google 登录按钮
             Button(action: handleGoogleSignIn) {
                 HStack {
@@ -652,6 +635,44 @@ struct AuthView: View {
             }
             .padding(.horizontal, 32)
         }
+    }
+
+    // MARK: - 隐私政策和技术支持链接
+
+    private var policyLinksView: some View {
+        VStack(spacing: 12) {
+            Text("注册即表示您同意我们的服务条款")
+                .font(.caption)
+                .foregroundColor(ApocalypseTheme.textMuted)
+
+            HStack(spacing: 16) {
+                Button(action: { openURL("https://bwjnx-spec.github.io/earthlord-support/privacy.html") }) {
+                    Text("隐私政策")
+                        .font(.caption)
+                        .foregroundColor(ApocalypseTheme.primary)
+                        .underline()
+                }
+
+                Text("·")
+                    .foregroundColor(ApocalypseTheme.textMuted)
+
+                Button(action: { openURL("https://bwjnx-spec.github.io/earthlord-support/") }) {
+                    Text("技术支持")
+                        .font(.caption)
+                        .foregroundColor(ApocalypseTheme.primary)
+                        .underline()
+                }
+            }
+        }
+        .padding(.top, 24)
+    }
+
+    private func openURL(_ urlString: String) {
+        #if os(iOS)
+        if let url = URL(string: urlString) {
+            UIApplication.shared.open(url)
+        }
+        #endif
     }
 
     // MARK: - 业务逻辑

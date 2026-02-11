@@ -126,21 +126,27 @@ struct ProfileTabView: View {
 
     private var settingsSection: some View {
         VStack(spacing: 0) {
-            settingRow(
-                icon: "shield.fill",
-                title: "账户安全",
-                subtitle: "密码、隐私设置"
-            )
+            // 账户安全 - 可导航
+            NavigationLink(destination: AccountSecurityView()) {
+                settingRowContent(
+                    icon: "shield.fill",
+                    title: "账户安全",
+                    subtitle: "密码、隐私设置"
+                )
+            }
 
             Divider()
                 .background(ApocalypseTheme.textMuted.opacity(0.2))
                 .padding(.horizontal)
 
-            settingRow(
-                icon: "bell.fill",
-                title: "通知设置",
-                subtitle: "管理推送通知"
-            )
+            // 通知设置 - 可导航
+            NavigationLink(destination: NotificationSettingView()) {
+                settingRowContent(
+                    icon: "bell.fill",
+                    title: "通知设置",
+                    subtitle: "管理推送通知"
+                )
+            }
 
             Divider()
                 .background(ApocalypseTheme.textMuted.opacity(0.2))
@@ -159,45 +165,17 @@ struct ProfileTabView: View {
                 .background(ApocalypseTheme.textMuted.opacity(0.2))
                 .padding(.horizontal)
 
-            settingRow(
-                icon: "info.circle.fill",
-                title: "关于",
-                subtitle: "版本 1.0.0"
-            )
+            // 关于
+            NavigationLink(destination: AboutView()) {
+                settingRowContent(
+                    icon: "info.circle.fill",
+                    title: "关于",
+                    subtitle: "版本 1.0.0"
+                )
+            }
         }
         .background(ApocalypseTheme.cardBackground)
         .cornerRadius(16)
-    }
-
-    private func settingRow(icon: String, title: LocalizedStringKey, subtitle: LocalizedStringKey) -> some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(ApocalypseTheme.primary)
-                .frame(width: 32)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.body)
-                    .foregroundColor(ApocalypseTheme.textPrimary)
-
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(ApocalypseTheme.textMuted)
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(ApocalypseTheme.textMuted)
-        }
-        .padding()
-        .contentShape(Rectangle())
-        .onTapGesture {
-            // TODO: 实现对应功能
-            print("⚠️ 功能开发中")
-        }
     }
 
     /// 设置行内容（用于 NavigationLink）

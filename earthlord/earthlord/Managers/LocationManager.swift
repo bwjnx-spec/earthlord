@@ -232,7 +232,41 @@ class LocationManager: NSObject, ObservableObject {
         isLocating = true
         locationError = nil
         locationManager.startUpdatingLocation()
+
+        // 模拟器回退方案：如果 3 秒内没有收到位置更新，使用默认模拟位置
+        #if targetEnvironment(simulator)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+            guard let self = self else { return }
+            // 只有在没有收到真实位置时才使用模拟位置
+            if self.userLocation == nil {
+                print("📍 [模拟器] 未收到位置更新，使用默认模拟位置")
+                self.useSimulatorFallbackLocation()
+            }
+        }
+        #endif
     }
+
+    #if targetEnvironment(simulator)
+    /// 模拟器回退位置（北京天安门广场）
+    private func useSimulatorFallbackLocation() {
+        // 默认位置：北京天安门广场
+        let simulatedCoordinate = CLLocationCoordinate2D(latitude: 39.9042, longitude: 116.4074)
+        let simulatedLocation = CLLocation(
+            coordinate: simulatedCoordinate,
+            altitude: 50,
+            horizontalAccuracy: 10,
+            verticalAccuracy: 10,
+            timestamp: Date()
+        )
+
+        self.currentLocation = simulatedLocation
+        self.userLocation = simulatedCoordinate
+        self.locationError = nil
+
+        print("📍 [模拟器] 使用模拟位置: (\(simulatedCoordinate.latitude), \(simulatedCoordinate.longitude))")
+        print("💡 提示: 在 Xcode 中可通过 Debug > Simulate Location 设置自定义位置")
+    }
+    #endif
 
     /// 停止更新位置
     func stopUpdatingLocation() {
@@ -281,6 +315,8 @@ class LocationManager: NSObject, ObservableObject {
         speedWarning = nil
         isOverSpeed = false
         lastLocationTimestamp = nil
+        consecutiveOverspeedCount = 0
+        consecutiveSevereOverspeedCount = 0
         distanceToStartPoint = nil  // 重置距离起点的距离
 
         // 重置验证状态
@@ -349,6 +385,8 @@ class LocationManager: NSObject, ObservableObject {
         isOverSpeed = false
         lastRawLocation = nil
         lastLocationTimestamp = nil
+        consecutiveOverspeedCount = 0
+        consecutiveSevereOverspeedCount = 0
 
         // 恢复正常的距离过滤器
         locationManager.distanceFilter = 10  // 恢复为10米过滤
@@ -471,6 +509,18 @@ class LocationManager: NSObject, ObservableObject {
         logger.updateStats(newPoint: gcjCoord, totalPoints: pathCoordinates.count)
     }
 
+    /// 连续超速计数（用于防止 GPS 跳变误报）
+    private var consecutiveOverspeedCount: Int = 0
+
+    /// 触发警告所需的连续超速次数
+    private let overspeedThreshold: Int = 3
+
+    /// 触发停止所需的连续严重超速次数
+    private let severeOverspeedThreshold: Int = 2
+
+    /// 连续严重超速计数
+    private var consecutiveSevereOverspeedCount: Int = 0
+
     /// 验证移动速度（防止作弊）
     /// - Parameter newLocation: 新位置
     /// - Returns: true 表示可以记录该点，false 表示严重超速不记录
@@ -484,26 +534,29 @@ class LocationManager: NSObject, ObservableObject {
 
         print("   📊 速度检测详情:")
 
+        // 过滤 GPS 精度差的位置（精度 > 50m 时跳过速度检测，避免位置跳变误报）
+        if newLocation.horizontalAccuracy > 50 || newLocation.horizontalAccuracy < 0 {
+            print("      ⚠️ GPS 精度差（\(String(format: "%.1f", newLocation.horizontalAccuracy))m），跳过速度检测")
+            return true
+        }
+
         // 计算距离（米）
         let distance = newLocation.distance(from: lastLocation)
         print("      距离: \(String(format: "%.2f", distance))m")
 
         // ⚠️ 关键：计算时间差，使用 GPS 时间戳，不是系统时间
         let timeInterval = newLocation.timestamp.timeIntervalSince(lastTimestamp)
-        print("      上次时间: \(lastTimestamp)")
-        print("      本次时间: \(newLocation.timestamp)")
         print("      时间差: \(String(format: "%.2f", timeInterval))秒")
 
-        // 防止除零错误和负数时间（GPS 时间戳异常）
-        guard timeInterval > 0.1 else {
-            print("      ⚠️ 时间差异常（\(String(format: "%.2f", timeInterval))秒），跳过速度检测")
+        // 防止除零错误、负数时间、以及过短时间间隔（< 1秒的读数不可靠）
+        guard timeInterval > 1.0 else {
+            print("      ⚠️ 时间间隔过短（\(String(format: "%.2f", timeInterval))秒），跳过速度检测")
             return true
         }
 
         // 计算速度（km/h）
         let speedMetersPerSecond = distance / timeInterval
         let speedKmPerHour = speedMetersPerSecond * 3.6
-        print("      计算速度: \(String(format: "%.2f", distance))m ÷ \(String(format: "%.2f", timeInterval))s = \(String(format: "%.2f", speedMetersPerSecond)) m/s")
         print("      速度: \(String(format: "%.1f", speedKmPerHour)) km/h")
 
         // 记录速度到日志
@@ -512,43 +565,54 @@ class LocationManager: NSObject, ObservableObject {
         // 判断速度范围
         print("      判断速度范围:")
 
-        // 速度 > 30 km/h：严重超速，停止追踪
+        // 速度 > 30 km/h：严重超速
         if speedKmPerHour > 30 {
-            print("      ❌ 严重超速 (> 30 km/h) → 停止追踪")
-            speedWarning = "速度过快 (\(String(format: "%.0f", speedKmPerHour)) km/h)，已自动停止圈地"
-            isOverSpeed = true
+            consecutiveSevereOverspeedCount += 1
+            consecutiveOverspeedCount += 1
+            print("      ⚠️ 严重超速 (\(consecutiveSevereOverspeedCount)/\(severeOverspeedThreshold))")
 
-            // 记录严重超速日志
-            logger.logSpeedWarning(speed: speedKmPerHour, isSevere: true)
+            // 需要连续多次严重超速才停止追踪（防止 GPS 单次跳变）
+            if consecutiveSevereOverspeedCount >= severeOverspeedThreshold {
+                print("      ❌ 连续严重超速，停止追踪")
+                speedWarning = "速度过快 (\(String(format: "%.0f", speedKmPerHour)) km/h)，已自动停止圈地"
+                isOverSpeed = true
+                logger.logSpeedWarning(speed: speedKmPerHour, isSevere: true)
 
-            // 延迟停止追踪（给用户看到警告的时间）
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.stopPathTracking()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    self?.stopPathTracking()
+                }
+                return false
             }
 
+            // 未达到阈值，跳过此点但不停止
             return false
         }
 
-        // 速度 > 15 km/h：警告但继续记录
+        // 速度 > 15 km/h：轻度超速
         if speedKmPerHour > 15 {
-            print("      ⚠️ 速度警告 (15-30 km/h) → 继续记录但警告")
-            speedWarning = "移动速度较快 (\(String(format: "%.0f", speedKmPerHour)) km/h)，请保持步行速度"
-            isOverSpeed = true
+            consecutiveOverspeedCount += 1
+            consecutiveSevereOverspeedCount = 0  // 非严重超速，重置严重计数
+            print("      ⚠️ 轻度超速 (\(consecutiveOverspeedCount)/\(overspeedThreshold))")
 
-            // 记录速度警告日志
-            logger.logSpeedWarning(speed: speedKmPerHour, isSevere: false)
+            // 需要连续多次超速才显示警告
+            if consecutiveOverspeedCount >= overspeedThreshold {
+                speedWarning = "移动速度较快 (\(String(format: "%.0f", speedKmPerHour)) km/h)，请保持步行速度"
+                isOverSpeed = true
+                logger.logSpeedWarning(speed: speedKmPerHour, isSevere: false)
 
-            // 3秒后自动清除警告
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-                self?.speedWarning = nil
-                self?.isOverSpeed = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                    self?.speedWarning = nil
+                    self?.isOverSpeed = false
+                }
             }
 
             return true
         }
 
-        // 速度正常
+        // 速度正常，重置所有超速计数
         print("      ✅ 速度正常 (≤ 15 km/h)")
+        consecutiveOverspeedCount = 0
+        consecutiveSevereOverspeedCount = 0
         speedWarning = nil
         isOverSpeed = false
         return true

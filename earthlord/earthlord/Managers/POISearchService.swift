@@ -315,20 +315,23 @@ class POISearchService {
         return .warehouse
     }
 
-    /// 生成末日风格名称
+    /// 生成 POI 显示名称
+    /// 真机上直接显示真实地名，方便测试验证
     private func generateApocalypseName(originalName: String, type: POIType) -> String {
+        #if targetEnvironment(simulator)
+        // 模拟器：末日风格名称
         let prefix = apocalypseNamePrefixes.randomElement() ?? "废弃的"
-
-        // 如果原名称已经包含类型关键词，直接加前缀
         let typeKeywords = ["医院", "药店", "加油站", "超市", "警局", "消防站", "工厂", "仓库", "商店", "便利店"]
         for keyword in typeKeywords {
             if originalName.contains(keyword) {
                 return "\(prefix)\(originalName)"
             }
         }
-
-        // 否则，使用类型名称 + 原名称
         return "\(prefix)\(type.rawValue)「\(originalName)」"
+        #else
+        // 真机：直接显示实际名称 + 类型标签
+        return "\(originalName)【\(type.rawValue)】"
+        #endif
     }
 
     /// 生成末日风格描述

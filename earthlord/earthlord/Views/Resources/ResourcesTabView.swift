@@ -80,6 +80,19 @@ struct ResourcesTabView: View {
             }
         }
         .pickerStyle(.segmented)
+        .onAppear {
+            // 设置分段选择器文字颜色，提高在深色背景下的可读性
+            UISegmentedControl.appearance().setTitleTextAttributes(
+                [.foregroundColor: UIColor.white], for: .normal
+            )
+            UISegmentedControl.appearance().setTitleTextAttributes(
+                [.foregroundColor: UIColor.black], for: .selected
+            )
+            UISegmentedControl.appearance().backgroundColor = UIColor(white: 0.2, alpha: 1.0)
+            UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(
+                red: 1.0, green: 0.4, blue: 0.1, alpha: 1.0
+            )
+        }
     }
 
     // MARK: - 交易开关

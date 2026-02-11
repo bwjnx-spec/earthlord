@@ -10,9 +10,12 @@ class GoogleAuthManager {
 
     private let supabase: SupabaseClient
 
-    // Google Client ID（从 Google Cloud Console 获取）
+    // Google Client ID（从 Info.plist 读取，与 URL Scheme 保持一致）
     private var clientID: String {
-        return "431220526072-jadsbrvusm6budts89a10t3nj97f0ftc.apps.googleusercontent.com"
+        guard let id = Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String else {
+            fatalError("Info.plist 中缺少 GIDClientID 配置")
+        }
+        return id
     }
 
     init(supabase: SupabaseClient) {

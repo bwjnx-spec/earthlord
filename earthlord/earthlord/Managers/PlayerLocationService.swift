@@ -122,6 +122,11 @@ class PlayerLocationService: NSObject, ObservableObject {
 
     private override init() {
         super.init()
+        // 注册隐私设置的默认值（首次使用时默认开启）
+        UserDefaults.standard.register(defaults: [
+            "privacy_showLocationToPlayers": true,
+            "privacy_showOnlineStatus": true
+        ])
         setupLocationObserver()
     }
 
@@ -167,6 +172,15 @@ class PlayerLocationService: NSObject, ObservableObject {
     ///   - location: 位置坐标
     ///   - trigger: 触发类型
     func reportLocation(_ location: CLLocationCoordinate2D, trigger: LocationReportTrigger) async {
+        let showLocation = UserDefaults.standard.bool(forKey: "privacy_showLocationToPlayers")
+        let showOnline = UserDefaults.standard.bool(forKey: "privacy_showOnlineStatus")
+
+        // 如果用户关闭了位置共享，不上报位置，仅标记在线状态
+        if !showLocation {
+            print("📍 [位置上报] 用户已关闭位置共享，跳过上报")
+            return
+        }
+
         print("📍 [位置上报] 触发: \(trigger.rawValue)")
         print("   坐标: (\(String(format: "%.6f", location.latitude)), \(String(format: "%.6f", location.longitude)))")
 
@@ -181,7 +195,7 @@ class PlayerLocationService: NSObject, ObservableObject {
                 "latitude": .double(location.latitude),
                 "longitude": .double(location.longitude),
                 "location": .string("SRID=4326;POINT(\(location.longitude) \(location.latitude))"),
-                "is_online": .bool(true),
+                "is_online": .bool(showOnline),
                 "last_seen_at": .string(ISO8601DateFormatter().string(from: Date())),
                 "updated_at": .string(ISO8601DateFormatter().string(from: Date()))
             ]

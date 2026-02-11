@@ -114,6 +114,26 @@ struct MapViewRepresentable: UIViewRepresentable {
             }
         }
 
+        // 模拟器回退：如果首次获得位置但 delegate 没有触发居中，主动居中
+        #if targetEnvironment(simulator)
+        if !context.coordinator.hasInitialCenteredFromUpdate,
+           let location = userLocation {
+            print("📍 [模拟器] 检测到位置更新，主动居中地图")
+            context.coordinator.hasInitialCenteredFromUpdate = true
+
+            let region = MKCoordinateRegion(
+                center: location,
+                latitudinalMeters: 1000,
+                longitudinalMeters: 1000
+            )
+            mapView.setRegion(region, animated: true)
+
+            DispatchQueue.main.async {
+                self.hasLocatedUser = true
+            }
+        }
+        #endif
+
         // 更新路径轨迹（检测版本变化）
         if context.coordinator.lastPathVersion != pathUpdateVersion {
             context.coordinator.lastPathVersion = pathUpdateVersion
@@ -302,8 +322,11 @@ struct MapViewRepresentable: UIViewRepresentable {
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: MapViewRepresentable
 
-        /// 首次居中标志 - 防止重复居中
+        /// 首次居中标志 - 防止重复居中（delegate 触发）
         private var hasInitialCentered = false
+
+        /// 首次居中标志 - 防止重复居中（updateUIView 触发，用于模拟器回退）
+        var hasInitialCenteredFromUpdate = false
 
         /// 上次路径版本号（用于检测变化）
         var lastPathVersion: Int = 0
