@@ -697,6 +697,11 @@ class ExplorationManager: NSObject, ObservableObject {
         // TODO: 同步到 Supabase
     }
 
+    /// 保存背包数据（供外部管理器调用）
+    func saveInventoryData() {
+        saveInventory()
+    }
+
     /// 使用物品
     func useItem(inventoryItemId: UUID) async throws {
         guard let index = inventoryItems.firstIndex(where: { $0.id == inventoryItemId }) else {

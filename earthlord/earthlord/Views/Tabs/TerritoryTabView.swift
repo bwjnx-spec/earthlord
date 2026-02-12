@@ -69,6 +69,13 @@ struct TerritoryTabView: View {
             .task {
                 await loadTerritories()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .territoryUpdated)) { _ in
+                Task { await loadTerritories() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .territoryDeleted)) { _ in
+                selectedTerritory = nil
+                Task { await loadTerritories() }
+            }
         }
     }
 

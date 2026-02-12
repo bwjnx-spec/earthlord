@@ -1,0 +1,82 @@
+[
+    {
+        "id": "00000000-0001-0000-0000-000000000001",
+        "template_id": "campfire",
+        "name": "篝火",
+        "category": "survival",
+        "tier": 1,
+        "description": "简易篝火，提供照明和温暖，是野外生存的基础设施",
+        "icon": "flame.fill",
+        "required_resources": {
+            "wood": 30,
+            "stone": 20
+        },
+        "build_time_seconds": 30,
+        "max_per_territory": 3,
+        "max_level": 3
+    },
+    {
+        "id": "00000000-0001-0000-0000-000000000002",
+        "template_id": "shelter",
+        "name": "庇护所",
+        "category": "survival",
+        "tier": 1,
+        "description": "简易庇护所，提供基本的遮风挡雨功能",
+        "icon": "house.fill",
+        "required_resources": {
+            "wood": 50,
+            "stone": 30
+        },
+        "build_time_seconds": 60,
+        "max_per_territory": 1,
+        "max_level": 5
+    },
+    {
+        "id": "00000000-0001-0000-0000-000000000003",
+        "template_id": "storage_small",
+        "name": "小仓库",
+        "category": "storage",
+        "tier": 1,
+        "description": "小型储物空间，可以存放多余的物资",
+        "icon": "shippingbox.fill",
+        "required_resources": {
+            "wood": 40,
+            "scrap_metal": 20
+        },
+        "build_time_seconds": 45,
+        "max_per_territory": 2,
+        "max_level": 3
+    },
+    {
+        "id": "00000000-0001-0000-0000-000000000004",
+        "template_id": "farm_simple",
+        "name": "简易农田",
+        "category": "production",
+        "tier": 1,
+        "description": "简易农田，可以种植基本作物获取食物",
+        "icon": "leaf.fill",
+        "required_resources": {
+            "wood": 20,
+            "stone": 10
+        },
+        "build_time_seconds": 40,
+        "max_per_territory": 2,
+        "max_level": 3
+    },
+    {
+        "id": "00000000-0001-0000-0000-000000000005",
+        "template_id": "solar_panel",
+        "name": "太阳能板",
+        "category": "energy",
+        "tier": 2,
+        "description": "利用太阳能发电的高级设施，为其他建筑提供能源",
+        "icon": "bolt.fill",
+        "required_resources": {
+            "scrap_metal": 60,
+            "electronics": 40
+        },
+        "build_time_seconds": 90,
+        "max_per_territory": 2,
+        "max_level": 3
+    }
+]

@@ -267,6 +267,7 @@ class TerritoryManager: ObservableObject {
 
             print("✅ 领地删除成功")
             logger.log("领地已删除", type: .success)
+            NotificationCenter.default.post(name: .territoryDeleted, object: nil)
             return true
 
         } catch {
@@ -497,6 +498,28 @@ class TerritoryManager: ObservableObject {
         return minDistance
     }
 
+    // MARK: - 领地重命名
+
+    /// 更新领地名称
+    /// - Parameters:
+    ///   - territoryId: 领地 ID
+    ///   - newName: 新名称
+    func updateTerritoryName(territoryId: String, newName: String) async throws {
+        do {
+            try await supabase
+                .from("territories")
+                .update(["name": AnyJSON.string(newName)])
+                .eq("id", value: territoryId)
+                .execute()
+
+            print("✅ 领地重命名成功: \(newName)")
+            NotificationCenter.default.post(name: .territoryUpdated, object: nil)
+        } catch {
+            print("❌ 领地重命名失败: \(error)")
+            throw error
+        }
+    }
+
     /// 综合碰撞检测（主方法）
     /// - Parameters:
     ///   - path: 路径坐标数组
@@ -564,4 +587,11 @@ enum TerritoryError: LocalizedError {
             return "加载失败: \(message)"
         }
     }
+}
+
+// MARK: - 通知名称
+
+extension Notification.Name {
+    static let territoryUpdated = Notification.Name("territoryUpdated")
+    static let territoryDeleted = Notification.Name("territoryDeleted")
 }

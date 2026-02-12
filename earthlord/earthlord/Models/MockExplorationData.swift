@@ -396,6 +396,18 @@ struct MockExplorationData {
             description: "普通木材，用于建造和制作"
         ),
         ItemDefinition(
+            id: "stone",
+            name: "石头",
+            category: .material,
+            weight: 1.5,
+            volume: 0.5,
+            rarity: .common,
+            stackable: true,
+            maxStack: 50,
+            hasQuality: false,
+            description: "普通石头，用于建造和加固"
+        ),
+        ItemDefinition(
             id: "scrap_metal",
             name: "废金属",
             category: .material,
