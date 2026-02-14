@@ -124,7 +124,16 @@ class TradeManager: ObservableObject {
 
     // MARK: - 接受交易
 
-    /// 接受交易挂单
+    /// RPC 返回结果
+    private struct AcceptTradeResult: Decodable {
+        let historyId: UUID
+
+        enum CodingKeys: String, CodingKey {
+            case historyId = "history_id"
+        }
+    }
+
+    /// 接受交易挂单（通过 RPC 原子化执行，含行级锁防并发）
     /// - Parameter offerId: 挂单 ID
     func acceptTradeOffer(offerId: UUID) async throws {
         // 1. 获取用户 ID
@@ -136,13 +145,13 @@ class TradeManager: ObservableObject {
             throw TradeError.notAuthenticated
         }
 
-        // 2. 查找挂单
+        // 2. 查找挂单（本地快速校验）
         guard let offer = availableOffers.first(where: { $0.id == offerId })
                 ?? myOffers.first(where: { $0.id == offerId }) else {
             throw TradeError.offerNotFound
         }
 
-        // 3. 验证
+        // 3. 本地预校验（快速失败，减少无效网络请求）
         guard offer.status == .active else {
             throw TradeError.offerNotActive
         }
@@ -166,45 +175,35 @@ class TradeManager: ObservableObject {
             throw TradeError.insufficientItems(missing: missing)
         }
 
-        // 5. 扣除接受者的物品（offer 请求的物品）
+        // 5. 扣除接受者的物品
         deductItems(offer.requestingItems)
 
-        // 6. 更新 Supabase 挂单状态
-        let formatter = ISO8601DateFormatter()
-        let now = Date()
-
+        // 6. 调用 RPC（原子操作：行级锁 + 更新挂单 + 插入历史 + 发布者待领取）
         do {
-            try await supabase
-                .from("trade_offers")
-                .update([
-                    "status": AnyJSON.string("completed"),
-                    "acceptor_id": AnyJSON.string(userId.uuidString),
-                    "completed_at": AnyJSON.string(formatter.string(from: now))
-                ])
-                .eq("id", value: offerId.uuidString)
+            let result: AcceptTradeResult = try await supabase
+                .rpc("accept_trade_offer_tx", params: ["p_offer_id": offerId.uuidString])
                 .execute()
+                .value
 
             // 7. 添加挂单提供的物品到接受者背包
             addItemsToInventory(offer.offeringItems, source: "交易获得")
 
-            // 8. 插入交易历史
-            let historyData: [String: AnyJSON] = [
-                "offer_id": .string(offerId.uuidString),
-                "seller_id": .string(offer.creatorId.uuidString),
-                "buyer_id": .string(userId.uuidString),
-                "offering_items": encodeTradeItemsToAnyJSON(offer.offeringItems),
-                "requesting_items": encodeTradeItemsToAnyJSON(offer.requestingItems),
-                "completed_at": .string(formatter.string(from: now))
-            ]
-
-            let history: TradeHistory = try await supabase
-                .from("trade_history")
-                .insert(historyData)
-                .select()
-                .single()
-                .execute()
-                .value
-
+            // 8. 构建本地交易历史
+            let now = Date()
+            let history = TradeHistory(
+                id: result.historyId,
+                offerId: offerId,
+                sellerId: offer.creatorId,
+                buyerId: userId,
+                offeringItems: offer.offeringItems,
+                requestingItems: offer.requestingItems,
+                sellerRating: nil,
+                buyerRating: nil,
+                sellerComment: nil,
+                buyerComment: nil,
+                completedAt: now,
+                createdAt: now
+            )
             tradeHistory.insert(history, at: 0)
 
             // 9. 更新本地缓存
@@ -224,6 +223,20 @@ class TradeManager: ObservableObject {
             // 回滚接受者的物品
             rollbackItems(offer.requestingItems)
             print("❌ 接受交易失败，已回滚物品: \(error)")
+
+            // 映射 RPC 错误到 TradeError
+            let msg = "\(error)"
+            if msg.contains("OFFER_NOT_FOUND") {
+                throw TradeError.offerNotFound
+            } else if msg.contains("OFFER_NOT_ACTIVE") {
+                throw TradeError.offerNotActive
+            } else if msg.contains("OFFER_EXPIRED") {
+                throw TradeError.offerExpired
+            } else if msg.contains("CANNOT_ACCEPT_OWN") {
+                throw TradeError.cannotAcceptOwnOffer
+            } else if msg.contains("NOT_AUTHENTICATED") {
+                throw TradeError.notAuthenticated
+            }
             throw TradeError.networkError(underlying: error)
         }
     }
@@ -307,6 +320,9 @@ class TradeManager: ObservableObject {
         }
 
         isLoading = false
+
+        // 自动领取待收物品
+        await claimPendingItems()
     }
 
     /// 加载市场可用挂单（排除自己的，仅 active 且未过期）
@@ -491,6 +507,44 @@ class TradeManager: ObservableObject {
             }
         } catch {
             print("❌ 过期检查失败: \(error)")
+        }
+    }
+
+    // MARK: - 待领取物品
+
+    /// 领取待收物品（发布者在对方接受交易后领取）
+    func claimPendingItems() async {
+        do {
+            let session = try await supabase.auth.session
+            let userId = session.user.id
+
+            // 查询未领取的物品
+            let pendingItems: [TradePendingItem] = try await supabase
+                .from("trade_pending_items")
+                .select()
+                .eq("user_id", value: userId.uuidString)
+                .eq("claimed", value: false)
+                .execute()
+                .value
+
+            for pending in pendingItems {
+                // 添加物品到背包
+                addItemsToInventory(pending.items, source: pending.source)
+
+                // 标记为已领取
+                try await supabase
+                    .from("trade_pending_items")
+                    .update(["claimed": AnyJSON.bool(true)])
+                    .eq("id", value: pending.id.uuidString)
+                    .execute()
+            }
+
+            if !pendingItems.isEmpty {
+                print("✅ 领取了 \(pendingItems.count) 笔交易物品")
+                NotificationCenter.default.post(name: .tradeCompleted, object: nil)
+            }
+        } catch {
+            print("❌ 领取待收物品失败: \(error)")
         }
     }
 

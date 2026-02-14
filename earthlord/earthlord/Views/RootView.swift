@@ -41,6 +41,7 @@ struct RootView: View {
             } else {
                 // 主界面
                 MainTabView()
+                    .environmentObject(authManager)
                     .transition(.opacity)
             }
         }

@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import Supabase
+import AuthenticationServices
 
 /// 认证页面
 /// 包含登录、注册和找回密码功能
@@ -619,6 +620,37 @@ struct AuthView: View {
             }
             .padding(.horizontal, 32)
 
+            // Sign in with Apple 按钮
+            SignInWithAppleButton(.signIn) { request in
+                request.requestedScopes = [.email, .fullName]
+            } onCompletion: { result in
+                switch result {
+                case .success(let authorization):
+                    guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                          let identityTokenData = credential.identityToken,
+                          let identityToken = String(data: identityTokenData, encoding: .utf8) else {
+                        authManager.errorMessage = "无法获取 Apple ID Token"
+                        return
+                    }
+                    // 保存 Apple User ID 用于静默登录检查
+                    let appleUserID = credential.user
+                    Task {
+                        authManager.saveAppleUserID(appleUserID)
+                        await authManager.signInWithAppleToken(identityToken: identityToken)
+                    }
+                case .failure(let error):
+                    if let authError = error as? ASAuthorizationError, authError.code == .canceled {
+                        // 用户取消，不显示错误
+                    } else {
+                        authManager.errorMessage = "Apple 登录失败: \(error.localizedDescription)"
+                    }
+                }
+            }
+            .signInWithAppleButtonStyle(.white)
+            .frame(height: 50)
+            .cornerRadius(12)
+            .padding(.horizontal, 32)
+
             // Google 登录按钮
             Button(action: handleGoogleSignIn) {
                 HStack {
@@ -752,12 +784,10 @@ struct AuthView: View {
         }
     }
 
-    // Apple 登录
+    // Apple 登录（通过 AppleAuthManager 的编程方式）
     private func handleAppleSignIn() {
         Task {
             await authManager.signInWithApple()
-            // TODO: 显示提示
-            showComingSoonToast()
         }
     }
 
@@ -765,8 +795,6 @@ struct AuthView: View {
     private func handleGoogleSignIn() {
         Task {
             await authManager.signInWithGoogle()
-            // TODO: 显示提示
-            showComingSoonToast()
         }
     }
 
@@ -823,11 +851,6 @@ struct AuthView: View {
         resetCountdown = 0
     }
 
-    // 显示"即将开放"提示
-    private func showComingSoonToast() {
-        // TODO: 实现 Toast 提示
-        print("即将开放")
-    }
 }
 
 // MARK: - 自定义文本输入框

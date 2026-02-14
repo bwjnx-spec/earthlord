@@ -141,6 +141,29 @@ struct TradeHistory: Codable, Identifiable {
     }
 }
 
+// MARK: - TradePendingItem
+
+/// 待领取的交易物品（发布者在对方接受交易后领取）
+struct TradePendingItem: Codable, Identifiable {
+    let id: UUID
+    let userId: UUID
+    let offerId: UUID
+    let items: [TradeItem]
+    let source: String
+    let claimed: Bool
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case offerId = "offer_id"
+        case items
+        case source
+        case claimed
+        case createdAt = "created_at"
+    }
+}
+
 // MARK: - TradeError
 
 /// 交易错误类型
@@ -191,4 +214,16 @@ enum TradeError: LocalizedError {
 extension Notification.Name {
     static let tradeCompleted = Notification.Name("tradeCompleted")
     static let tradeOffersUpdated = Notification.Name("tradeOffersUpdated")
+}
+
+// MARK: - Hashable Conformance
+
+extension TradeOffer: Hashable {
+    static func == (lhs: TradeOffer, rhs: TradeOffer) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+extension TradeHistory: Hashable {
+    static func == (lhs: TradeHistory, rhs: TradeHistory) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }

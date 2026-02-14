@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import Supabase
+import AuthenticationServices
 
 /// 认证管理器
 /// 负责处理用户注册、登录、密码重置等认证流程
@@ -34,10 +35,81 @@ class AuthManager: ObservableObject {
 
     private let supabase: SupabaseClient
 
+    /// Apple User ID 存储 Key
+    private static let appleUserIDKey = "earthlord_apple_user_id"
+
     // MARK: - Initialization
 
     init(supabase: SupabaseClient) {
         self.supabase = supabase
+        setupAppleCredentialRevocationListener()
+    }
+
+    // MARK: - Apple 凭证管理
+
+    /// 保存 Apple User ID
+    func saveAppleUserID(_ userID: String) {
+        UserDefaults.standard.set(userID, forKey: Self.appleUserIDKey)
+        print("🍎 已保存 Apple User ID")
+    }
+
+    /// 清除 Apple User ID
+    private func clearAppleUserID() {
+        UserDefaults.standard.removeObject(forKey: Self.appleUserIDKey)
+    }
+
+    /// 获取已保存的 Apple User ID
+    private var savedAppleUserID: String? {
+        UserDefaults.standard.string(forKey: Self.appleUserIDKey)
+    }
+
+    /// 检查 Apple 凭证状态（启动时调用）
+    func checkAppleCredentialState() async {
+        guard let appleUserID = savedAppleUserID else {
+            // 不是 Apple 登录的用户，跳过
+            return
+        }
+
+        print("🍎 检查 Apple 凭证状态...")
+
+        do {
+            let state = try await ASAuthorizationAppleIDProvider().credentialState(forUserID: appleUserID)
+
+            switch state {
+            case .authorized:
+                print("🍎 Apple 凭证有效")
+            case .revoked:
+                print("🍎 Apple 凭证已撤销，自动登出")
+                clearAppleUserID()
+                await signOut()
+            case .notFound:
+                print("🍎 Apple 凭证未找到，自动登出")
+                clearAppleUserID()
+                await signOut()
+            case .transferred:
+                print("🍎 Apple 凭证已转移")
+            @unknown default:
+                break
+            }
+        } catch {
+            print("🍎 检查 Apple 凭证失败: \(error.localizedDescription)")
+        }
+    }
+
+    /// 监听 Apple 凭证撤销通知
+    private func setupAppleCredentialRevocationListener() {
+        NotificationCenter.default.addObserver(
+            forName: ASAuthorizationAppleIDProvider.credentialRevokedNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                print("🍎 收到 Apple 凭证撤销通知")
+                self.clearAppleUserID()
+                await self.signOut()
+            }
+        }
     }
 
     // MARK: - 注册流程
@@ -316,10 +388,79 @@ class AuthManager: ObservableObject {
     // MARK: - 第三方登录
 
     /// 使用 Apple 登录
-    /// - Note: TODO: 实现 Apple Sign In
     func signInWithApple() async {
-        // TODO: 实现 Apple 第三方登录
-        print("⚠️ Apple 登录功能待实现")
+        print("🍎 开始 Apple 登录流程")
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let appleAuthManager = AppleAuthManager(supabase: supabase)
+            let (supabaseUser, appleUserID) = try await appleAuthManager.signInWithApple()
+
+            // 保存 Apple User ID 用于静默登录检查
+            if let appleUserID {
+                saveAppleUserID(appleUserID)
+            }
+
+            isAuthenticated = true
+            needsPasswordSetup = false
+
+            currentUser = User(
+                id: supabaseUser.id.uuidString,
+                email: supabaseUser.email,
+                createdAt: supabaseUser.createdAt
+            )
+
+            print("✅ Apple 登录完成")
+            print("   用户 ID: \(supabaseUser.id.uuidString)")
+            print("   用户 Email: \(supabaseUser.email ?? "隐藏")")
+
+        } catch let error as AppleAuthError where error == .cancelled {
+            print("⚠️ 用户取消了 Apple 登录")
+        } catch {
+            errorMessage = "Apple 登录失败: \(error.localizedDescription)"
+            print("❌ Apple 登录失败: \(error)")
+            isAuthenticated = false
+        }
+
+        isLoading = false
+        print("🍎 Apple 登录流程结束")
+    }
+
+    /// 使用 Apple ID Token 登录（由 SignInWithAppleButton 回调使用）
+    func signInWithAppleToken(identityToken: String) async {
+        print("🍎 Apple Token 登录 - 开始")
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let session = try await supabase.auth.signInWithIdToken(
+                credentials: .init(
+                    provider: .apple,
+                    idToken: identityToken
+                )
+            )
+
+            isAuthenticated = true
+            needsPasswordSetup = false
+
+            let supabaseUser = session.user
+            currentUser = User(
+                id: supabaseUser.id.uuidString,
+                email: supabaseUser.email,
+                createdAt: supabaseUser.createdAt
+            )
+
+            print("✅ Apple Token 登录完成")
+            print("   用户 ID: \(supabaseUser.id.uuidString)")
+
+        } catch {
+            errorMessage = "Apple 登录失败: \(error.localizedDescription)"
+            print("❌ Apple Token 登录失败: \(error)")
+            isAuthenticated = false
+        }
+
+        isLoading = false
     }
 
     /// 使用 Google 登录
@@ -382,6 +523,7 @@ class AuthManager: ObservableObject {
             currentUser = nil
             otpSent = false
             otpVerified = false
+            clearAppleUserID()
 
             print("✅ 登出成功")
             print("   isAuthenticated: \(isAuthenticated)")
@@ -398,6 +540,7 @@ class AuthManager: ObservableObject {
             currentUser = nil
             otpSent = false
             otpVerified = false
+            clearAppleUserID()
         }
 
         isLoading = false
@@ -467,6 +610,9 @@ class AuthManager: ObservableObject {
     /// - Note: 应用启动时调用，恢复登录状态
     func checkSession() async {
         isLoading = true
+
+        // 先检查 Apple 凭证是否仍然有效（已撤销则自动登出）
+        await checkAppleCredentialState()
 
         do {
             // 获取当前会话

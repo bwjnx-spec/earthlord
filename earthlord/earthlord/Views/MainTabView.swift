@@ -27,19 +27,26 @@ struct MainTabView: View {
                 }
                 .tag(2)
 
+            CommunicationTabView()
+                .tabItem {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                    Text("通讯")
+                }
+                .tag(3)
+
             ProfileTabView()
                 .tabItem {
                     Image(systemName: "person.fill")
                     Text("个人")
                 }
-                .tag(3)
+                .tag(4)
 
             TestMenuView()
                 .tabItem {
                     Image(systemName: "wrench.and.screwdriver.fill")
                     Text("测试")
                 }
-                .tag(4)
+                .tag(5)
         }
         .tint(ApocalypseTheme.primary)
         .refreshOnLanguageChange()

@@ -13,3 +13,5 @@ DerivedData/
 supabase/.env
 supabase/.branches
 supabase/.temp
+AuthKey_8J2PBKX24Q.p8
+*.p8
