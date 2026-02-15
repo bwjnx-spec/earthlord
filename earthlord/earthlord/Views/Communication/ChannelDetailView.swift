@@ -117,6 +117,22 @@ struct ChannelDetailView: View {
 
                     Spacer().frame(height: 8)
 
+                    // 进入聊天
+                    if isSubscribed {
+                        NavigationLink(destination: ChannelChatView(channel: channel).environmentObject(authManager)) {
+                            HStack {
+                                Image(systemName: "bubble.left.and.bubble.right.fill")
+                                Text("进入聊天")
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(ApocalypseTheme.primary)
+                            .cornerRadius(12)
+                        }
+                    }
+
                     // 操作按钮
                     if isSubscribed {
                         Button(action: {

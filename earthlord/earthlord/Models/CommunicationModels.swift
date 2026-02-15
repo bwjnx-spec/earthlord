@@ -184,3 +184,67 @@ struct ChannelSubscription: Codable, Identifiable {
         case subscribedAt = "subscribed_at"
     }
 }
+
+// MARK: - 消息类型枚举
+
+enum MessageType: String, Codable {
+    case text = "text"
+    case system = "system"
+    case location = "location"
+    case trade = "trade"
+}
+
+// MARK: - 位置点模型
+
+struct LocationPoint {
+    let latitude: Double
+    let longitude: Double
+}
+
+// MARK: - 频道消息模型
+
+struct ChannelMessage: Codable, Identifiable {
+    let id: UUID
+    let channelId: UUID
+    let senderId: UUID
+    let senderName: String
+    let content: String
+    let messageType: MessageType
+    let senderLocation: String?
+    let metadata: [String: String]?
+    let senderDeviceType: DeviceType?
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case channelId = "channel_id"
+        case senderId = "sender_id"
+        case senderName = "sender_name"
+        case content
+        case messageType = "message_type"
+        case senderLocation = "sender_location"
+        case metadata
+        case senderDeviceType = "sender_device_type"
+        case createdAt = "created_at"
+    }
+
+    /// 解析 PostGIS POINT 为 LocationPoint
+    /// 格式: "POINT(lon lat)"
+    var location: LocationPoint? {
+        guard let wkt = senderLocation,
+              wkt.hasPrefix("POINT("),
+              wkt.hasSuffix(")") else { return nil }
+        let start = wkt.index(wkt.startIndex, offsetBy: 6)
+        let end = wkt.index(wkt.endIndex, offsetBy: -1)
+        let coords = String(wkt[start..<end]).split(separator: " ")
+        guard coords.count == 2,
+              let lon = Double(coords[0]),
+              let lat = Double(coords[1]) else { return nil }
+        return LocationPoint(latitude: lat, longitude: lon)
+    }
+
+    /// 判断是否是自己发送的消息
+    func isMine(userId: UUID) -> Bool {
+        senderId == userId
+    }
+}

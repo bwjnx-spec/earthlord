@@ -14,6 +14,10 @@ import Network  // 网络状态监控
 /// GPS 定位管理器
 class LocationManager: NSObject, ObservableObject {
 
+    // MARK: - Singleton
+
+    static let shared = LocationManager()
+
     // MARK: - Published Properties
 
     /// 用户当前位置坐标

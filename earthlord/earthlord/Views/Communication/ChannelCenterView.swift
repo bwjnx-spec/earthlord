@@ -135,7 +135,7 @@ struct ChannelCenterView: View {
             emptyState(icon: "dot.radiowaves.left.and.right", title: "暂无订阅频道", subtitle: "去「发现频道」探索并订阅感兴趣的频道")
         } else {
             ForEach(filteredSubscribed) { channel in
-                NavigationLink(destination: ChannelDetailView(channel: channel).environmentObject(authManager)) {
+                NavigationLink(destination: ChannelChatView(channel: channel).environmentObject(authManager)) {
                     channelCard(channel: channel, showSubscribeButton: false)
                 }
             }
