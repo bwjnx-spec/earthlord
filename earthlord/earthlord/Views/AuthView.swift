@@ -210,45 +210,6 @@ struct AuthView: View {
                     .foregroundColor(ApocalypseTheme.primary)
             }
 
-            // 分隔线
-            HStack {
-                Rectangle()
-                    .fill(ApocalypseTheme.textSecondary.opacity(0.3))
-                    .frame(height: 1)
-                Text("或")
-                    .font(.footnote)
-                    .foregroundColor(ApocalypseTheme.textSecondary)
-                Rectangle()
-                    .fill(ApocalypseTheme.textSecondary.opacity(0.3))
-                    .frame(height: 1)
-            }
-            .padding(.vertical, 8)
-
-            // Google 登录按钮
-            Button(action: handleGoogleLogin) {
-                HStack(spacing: 12) {
-                    if authManager.isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: ApocalypseTheme.primary))
-                    } else {
-                        Image(systemName: "globe")
-                            .font(.system(size: 20))
-                    }
-                    Text(authManager.isLoading ? "Google 登录中..." : "使用 Google 登录")
-                        .font(.headline)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.white)
-                .foregroundColor(ApocalypseTheme.primary)
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(ApocalypseTheme.primary.opacity(0.3), lineWidth: 1)
-                )
-            }
-            .disabled(authManager.isLoading)
-            .opacity(authManager.isLoading ? 0.6 : 1.0)
         }
         .padding(.horizontal, 32)
     }
@@ -618,55 +579,54 @@ struct AuthView: View {
                     .fill(ApocalypseTheme.textMuted.opacity(0.3))
                     .frame(height: 1)
             }
-            .padding(.horizontal, 32)
 
-            // Sign in with Apple 按钮
-            SignInWithAppleButton(.signIn) { request in
-                request.requestedScopes = [.email, .fullName]
-            } onCompletion: { result in
-                switch result {
-                case .success(let authorization):
-                    guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                          let identityTokenData = credential.identityToken,
-                          let identityToken = String(data: identityTokenData, encoding: .utf8) else {
-                        authManager.errorMessage = "无法获取 Apple ID Token"
-                        return
-                    }
-                    // 保存 Apple User ID 用于静默登录检查
-                    let appleUserID = credential.user
-                    Task {
-                        authManager.saveAppleUserID(appleUserID)
-                        await authManager.signInWithAppleToken(identityToken: identityToken)
-                    }
-                case .failure(let error):
-                    if let authError = error as? ASAuthorizationError, authError.code == .canceled {
-                        // 用户取消，不显示错误
-                    } else {
-                        authManager.errorMessage = "Apple 登录失败: \(error.localizedDescription)"
+            // Apple 和 Google 并列按钮
+            HStack(spacing: 12) {
+                // Sign in with Apple 按钮
+                SignInWithAppleButton(.signIn) { request in
+                    request.requestedScopes = [.email, .fullName]
+                } onCompletion: { result in
+                    switch result {
+                    case .success(let authorization):
+                        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                              let identityTokenData = credential.identityToken,
+                              let identityToken = String(data: identityTokenData, encoding: .utf8) else {
+                            authManager.errorMessage = "无法获取 Apple ID Token"
+                            return
+                        }
+                        let appleUserID = credential.user
+                        Task {
+                            authManager.saveAppleUserID(appleUserID)
+                            await authManager.signInWithAppleToken(identityToken: identityToken)
+                        }
+                    case .failure(let error):
+                        if let authError = error as? ASAuthorizationError, authError.code == .canceled {
+                            // 用户取消，不显示错误
+                        } else {
+                            authManager.errorMessage = "Apple 登录失败: \(error.localizedDescription)"
+                        }
                     }
                 }
-            }
-            .signInWithAppleButtonStyle(.white)
-            .frame(height: 50)
-            .cornerRadius(12)
-            .padding(.horizontal, 32)
-
-            // Google 登录按钮
-            Button(action: handleGoogleSignIn) {
-                HStack {
-                    Image(systemName: "g.circle.fill")
-                        .font(.title3)
-                    Text("使用 Google 登录")
-                        .font(.headline)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.white)
-                .foregroundColor(.black)
+                .signInWithAppleButtonStyle(.white)
+                .frame(height: 50)
                 .cornerRadius(12)
+
+                // Google 登录按钮
+                Button(action: handleGoogleSignIn) {
+                    HStack {
+                        Image(systemName: "g.circle.fill")
+                            .font(.title3)
+                        Text("Google 登录")
+                            .font(.headline)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(Color.white)
+                    .foregroundColor(.black)
+                    .cornerRadius(12)
+                }
             }
-            .padding(.horizontal, 32)
         }
+        .padding(.horizontal, 32)
     }
 
     // MARK: - 隐私政策和技术支持链接
@@ -713,16 +673,6 @@ struct AuthView: View {
     private func handleLogin() {
         Task {
             await authManager.signIn(email: loginEmail, password: loginPassword)
-        }
-    }
-
-    // Google 登录
-    private func handleGoogleLogin() {
-        print("🔵 用户点击 Google 登录按钮")
-        Task {
-            print("   开始 Google 登录流程...")
-            await authManager.signInWithGoogle()
-            print("   Google 登录流程结束")
         }
     }
 
